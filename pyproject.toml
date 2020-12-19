@@ -1,0 +1,40 @@
+[tool.poetry]
+name = "jurigged"
+version = "0.1.0"
+description = "Live update of Python functions"
+authors = ["Olivier Breuleux <breuleux@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/breuleux/jurigged"
+repository = "https://github.com/breuleux/jurigged"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+ovld = "^0.2.7"
+watchdog = "^1.0.2"
+blessed = "^1.17.12"
+
+[tool.poetry.dev-dependencies]
+black = "19.3b0"
+isort = "^5.6.4"
+pytest = "^6.2.1"
+pytest-cov = "^2.10.1"
+flake8 = "^3.8.4"
+
+[tool.poetry.scripts]
+jurigged = "jurigged.live:cli"
+
+[tool.black]
+line-length = 80
+exclude = "tests/snippets"
+
+[tool.isort]
+known_first_party = "jurigged"
+known_third_party = ""
+multi_line_output = 3
+include_trailing_comma = true
+combine_as_imports = true
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
