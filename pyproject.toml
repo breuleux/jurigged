@@ -34,6 +34,13 @@ known_third_party = ""
 multi_line_output = 3
 include_trailing_comma = true
 combine_as_imports = true
+skip = "tests/snippets/"
+
+[tool.coverage.run]
+omit = [
+    "jurigged/__main__.py",
+    "tests/*",
+]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

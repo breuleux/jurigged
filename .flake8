@@ -1,0 +1,4 @@
+[flake8]
+ignore = W503,E501,E203,F811
+per-file-ignores =
+    __init__.py:F401

@@ -1,12 +1,12 @@
 import ast
 import inspect
-import itertools
 import re
 import textwrap
 from dataclasses import dataclass, field, replace as dc_replace
 from types import FunctionType, ModuleType
+from typing import Optional
 
-from ovld import has_attribute, ovld
+from ovld import ovld
 
 
 def _split(text):
@@ -119,7 +119,7 @@ class Definition:
     firstlineno: int
     lastlineno: int
     nlock: int
-    parent: "Optional[Definition]"
+    parent: Optional["Definition"]
     children: list = field(compare=False)
     indent: int
     source: str
@@ -127,8 +127,8 @@ class Definition:
     live: str
     node: object = field(compare=False)
     object: object
-    pred: "Optional[Definition]" = field(compare=False, default=None)
-    succ: "Optional[Definition]" = field(compare=False, default=None)
+    pred: Optional["Definition"] = field(compare=False, default=None)
+    succ: Optional["Definition"] = field(compare=False, default=None)
 
     replace = dc_replace
 
@@ -309,8 +309,10 @@ def _cluster_lines(nodes):
         return nodes
     results = []
     endline = -1
+    curr = None
     for node in nodes:
         if node.lineno <= endline:
+            # Note: Condition cannot be true for the first node
             curr.append(node)
         else:
             curr = [node]

@@ -5,7 +5,6 @@ import logging
 import os
 import runpy
 import sys
-import time
 
 import blessed
 from _frozen_importlib_external import (  # Is it OK to import this?
@@ -45,9 +44,9 @@ class ImportSniffer:
                 mspec = importlib.util.find_spec(spec, path)
                 if isinstance(mspec.loader, SourceFileLoader):
                     self.report(mspec.name, mspec.origin)
-            except Exception as exc:
+            except Exception:
                 self.working = False
-                return None
+                raise
             self.working = False
         return None
 
