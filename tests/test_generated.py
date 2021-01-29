@@ -1,4 +1,3 @@
-import inspect
 import itertools
 import random
 import textwrap
@@ -236,7 +235,7 @@ def ordered_code(codefile):
     for defn in defns:
         code += textwrap.indent(defn.saved, " " * defn.indent) + "\n"
     lines = code.split("\n")
-    return "\n".join([l for l in lines if l.strip()])
+    return "\n".join([line for line in lines if line.strip()])
 
 
 def gencode(plan):

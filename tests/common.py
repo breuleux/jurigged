@@ -67,12 +67,17 @@ class TemporaryModule:
         open(path, "w").write(contents)
         return path
 
-    def transfer(self, name):
+    def transfer(self, name, mangle=True):
         orig = os.path.join(os.path.dirname(__file__), "snippets", f"{name}.py")
-        mname = f"{name}__{next(tmpcount)}"
+        if mangle is True:
+            mname = f"{name}__{next(tmpcount)}"
+        elif isinstance(mangle, str):
+            mname = f"{name}{mangle}"
+        else:
+            mname = name
         filename = self.write(f"{mname}.py", open(orig).read())
         return mname, filename
 
-    def imp(self, name):
-        mname, _ = self.transfer(name)
+    def imp(self, name, mangle=True):
+        mname, _ = self.transfer(name, mangle=mangle)
         return __import__(mname)

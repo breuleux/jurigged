@@ -65,12 +65,12 @@ def getsource(fn):
 def chk(codefile, name, l0, ln, fn, parent=None, src=None, nlock=0):
     funcs = codefile.defnmap
     if parent is not None:
-        parent = funcs[parent]
+        parent = funcs[parent[1]]
     if src is None:
         src = getsource(fn)
     indent = len(src) - len(src.lstrip())
     src = textwrap.dedent(src)
-    fu = funcs[name, l0]
+    fu = funcs[l0]
     return fu == Definition(
         type="function",
         name=name,

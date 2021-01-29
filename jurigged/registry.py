@@ -3,6 +3,7 @@ import importlib.util
 import logging
 import os
 import sys
+from types import FunctionType
 
 from _frozen_importlib_external import SourceFileLoader
 
@@ -11,7 +12,7 @@ from .codefile import CodeFile
 log = logging.getLogger(__name__)
 
 
-def glob_watcher(pattern):
+def glob_filter(pattern):
     if pattern.startswith("~"):
         pattern = os.path.expanduser(pattern)
     elif not pattern.startswith("/"):
@@ -72,7 +73,7 @@ class Registry:
 
         return None
 
-    def auto_register(self, filter=glob_watcher("./*.py")):
+    def auto_register(self, filter=glob_filter("./*.py")):
         def prep(module_name, filename):
             if (
                 filename is not None
@@ -87,16 +88,22 @@ class Registry:
             prep(module_name, filename)
 
         sniffer = ImportSniffer(prep)
-        sys.meta_path.insert(0, sniffer)
+        sniffer.install()
+        return sniffer
 
     def find(self, filename, lineno):
         cf = self.get(filename)
         if cf is None:
-            return None
-        return cf.defnmap.get((filename, lineno), None)
+            return None, None
+        defn = cf.defnmap.get(lineno, None)
+        return cf, defn
 
     def find_function(self, fn):
+        if not isinstance(fn, FunctionType):
+            return None, None
+
         co = fn.__code__
+        self.prepare(fn.__module__, co.co_filename)
         return self.find(co.co_filename, co.co_firstlineno)
 
 
@@ -116,6 +123,12 @@ class ImportSniffer:
         self.working = False
         self.report = report
 
+    def install(self):
+        sys.meta_path.insert(0, self)
+
+    def uninstall(self):
+        sys.meta_path.remove(self)
+
     def find_module(self, spec, path):
         if not self.working:
             self.working = True
@@ -126,7 +139,8 @@ class ImportSniffer:
             # but it seems to work, so whatever.
             mspec = importlib.util.find_spec(spec, path)
             if (
-                isinstance(mspec.loader, SourceFileLoader)
+                mspec is not None
+                and isinstance(mspec.loader, SourceFileLoader)
                 and mspec.name is not None
                 and mspec.origin is not None
             ):

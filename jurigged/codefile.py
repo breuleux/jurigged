@@ -416,7 +416,7 @@ class CodeFile:
             listener(event)
 
     def add_definition(self, defn, redirect=None):
-        key = defn.name, defn.firstlineno
+        key = defn.firstlineno
         value = redirect or defn
         self.definitions.add(value)
         self.defnmap[key] = value
@@ -432,8 +432,7 @@ class CodeFile:
             code = obj.__code__
             if code.co_filename not in self.filenames:
                 return None
-            key = (obj.__name__, code.co_firstlineno)
-            return self.defnmap.get(key, None)
+            return self.defnmap.get(code.co_firstlineno, None)
 
         elif isinstance(obj, type):
             for method in vars(obj).values():
@@ -611,10 +610,9 @@ class CodeFile:
             self.add_definition(defn2)
         self.associate(new)
 
-        if defn.filename != self.filename:
-            insert_point = self._insert_point(defn)
-            defn.refile(self.filename, insert_point + 1)
-            self.reline(defn, insert_point, insert_point)
+        insert_point = self._insert_point(defn)
+        defn.refile(self.filename, insert_point + 1)
+        self.reline(defn, insert_point, insert_point)
 
         self.emit(AddOperation(codefile=self, definition=defn))
 
