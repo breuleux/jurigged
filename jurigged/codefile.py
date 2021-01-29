@@ -383,9 +383,9 @@ def _flatten(entries):
 
 
 class CodeFile:
-    def __init__(self, filename, source=None, logger=None):
+    def __init__(self, filename, source=None):
         self.globals = None
-        self.logger = logger
+        self.listeners = []
         self.filename = filename
         self.filenames = {filename}
         if source is None:
@@ -405,9 +405,15 @@ class CodeFile:
         for defn in results:
             self.add_definition(defn)
 
-    def emit(self, *args):
-        if self.logger is not None:
-            self.logger(self, *args)
+    def add_listener(self, listener):
+        self.listeners.append(listener)
+
+    def remove_listener(self, listener):
+        self.listeners.remove(listener)
+
+    def emit(self, event):
+        for listener in self.listeners:
+            listener(event)
 
     def add_definition(self, defn, redirect=None):
         key = defn.name, defn.firstlineno
@@ -574,7 +580,7 @@ class CodeFile:
 
     def _process_change(self, d1, d2):
         if not d1.compatible(d2):
-            self.emit("update", d1, False)
+            self.emit(FailedUpdateOperation(codefile=self, definition=d1))
             return
         d1.activate(d2.live)
         d2.node.decorator_list = []
@@ -587,7 +593,7 @@ class CodeFile:
         else:
             self.reline(d1, d2.firstlineno - 1, d2.lastlineno)
 
-        self.emit("update", d1, True)
+        self.emit(UpdateOperation(codefile=self, definition=d1))
 
     def _process_same(self, d1, d2):
         if d2.filename == self.filename:
@@ -610,7 +616,7 @@ class CodeFile:
             defn.refile(self.filename, insert_point + 1)
             self.reline(defn, insert_point, insert_point)
 
-        self.emit("add", defn, True)
+        self.emit(AddOperation(codefile=self, definition=defn))
 
     def _process_deletion(self, defn):
         for defn2 in defn.scope():
@@ -620,7 +626,7 @@ class CodeFile:
         if defn.filename == self.filename:
             self.reline(defn, defn.firstlineno - 1, defn.lastlineno)
 
-        self.emit("delete", defn, True)
+        self.emit(DeleteOperation(codefile=self, definition=defn))
 
     def reline(self, defn, start, end):
         lines = defn.format_lines() if defn.active else []
@@ -663,10 +669,62 @@ class CodeFile:
                 defn.saved = defn.source
 
     def refresh(self):
-        try:
-            cf = CodeFile(self.filename)
-        except SyntaxError as err:
-            self.emit("error", err, False)
-            return False
+        new_source = open(self.filename).read()
+        if new_source == self.source:
+            return
+        cf = CodeFile(self.filename, source=new_source)
         self.merge(cf)
-        return True
+        self.source = new_source
+
+
+@dataclass
+class CodeFileOperation:
+    codefile: CodeFile
+    definition: Definition
+
+    @property
+    def dotpath(self):
+        defns = [self.definition, *self.definition.parent_chain()]
+        parts = [defn.name for defn in defns if defn.name is not None]
+        if self.codefile is not None and self.codefile.module is not None:
+            parts.append(self.codefile.module.__name__)
+        return ".".join(reversed(parts))
+
+
+@dataclass
+class UpdateOperation(CodeFileOperation):
+    codefile: CodeFile
+    definition: Definition
+
+    def __str__(self):
+        return f"Update {self.dotpath} @L{self.definition.firstlineno}"
+
+
+@dataclass
+class FailedUpdateOperation(CodeFileOperation):
+    codefile: CodeFile
+    definition: Definition
+
+    def __str__(self):
+        return f"Failed update {self.dotpath} @L{self.definition.firstlineno}"
+
+
+@dataclass
+class AddOperation(CodeFileOperation):
+    codefile: CodeFile
+    definition: Definition
+
+    def __str__(self):
+        if self.definition.type == "statement":
+            return f"Run {self.dotpath} @L{self.definition.firstlineno}: {self.definition.source}"
+        else:
+            return f"Add {self.dotpath} @L{self.definition.firstlineno}"
+
+
+@dataclass
+class DeleteOperation(CodeFileOperation):
+    codefile: CodeFile
+    definition: Definition
+
+    def __str__(self):
+        return f"Delete {self.dotpath} @L{self.definition.firstlineno}"

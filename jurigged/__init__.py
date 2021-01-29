@@ -1,2 +1,2 @@
 from .codefile import CodeFile, Definition, conform, dig
-from .live import Collector, watch
+from .live import Watcher, watch
