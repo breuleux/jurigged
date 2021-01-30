@@ -4,7 +4,7 @@ import sys
 import pytest
 
 from jurigged import codefile
-from jurigged.registry import ImportSniffer, Registry, glob_filter
+from jurigged.register import ImportSniffer, Registry, glob_filter
 
 from .common import TemporaryModule, one_test_per_assert
 

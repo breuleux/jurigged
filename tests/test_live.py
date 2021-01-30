@@ -3,7 +3,7 @@ import time
 
 from jurigged import codefile
 from jurigged.live import WatchOperation, default_logger, watch
-from jurigged.registry import Registry
+from jurigged.register import Registry
 
 from .common import one_test_per_assert
 from .test_codefile import apple_file as apple, tmod  # noqa

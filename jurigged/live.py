@@ -12,7 +12,7 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 from . import codefile
-from .registry import glob_filter, registry
+from .register import glob_filter, registry
 
 log = logging.getLogger(__name__)
 T = blessed.Terminal()
