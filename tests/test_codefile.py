@@ -6,7 +6,7 @@ from types import SimpleNamespace as NS
 
 import pytest
 
-from jurigged.codefile import CodeFile, Definition
+from jurigged.codefile import CodeFile, Definition, conform
 
 from .common import TemporaryModule, one_test_per_assert
 from .snippets import apple
@@ -119,6 +119,30 @@ def elephant(tmod):
 @pytest.fixture
 def firmament(tmod):
     return CodeFileCollection(tmod, "firmament")
+
+
+def f1(x):
+    return x * 2
+
+
+def f2(x):
+    return x * 10
+
+
+def test_conform():
+    ff1 = f1
+    ff2 = f2
+
+    # Should make the behavior of the two functions equal
+    assert ff1(4) == 8
+    assert ff2(4) == 40
+    conform(f1, f2)
+    assert ff1(4) == 40
+    assert ff2(4) == 40
+    assert ff1.__code__ is ff2.__code__
+
+    # Should not crash on non-functions
+    conform(1, 2)
 
 
 @one_test_per_assert
@@ -388,3 +412,25 @@ def test_regen_statements(firmament):
     firmament.main.commit()
     print(firmament.read().strip())
     assert firmament.read().strip() == firmament.read("result").strip()
+
+
+def test_predecessor(ballon):
+    vol = ballon.main.locate(ballon.module.FlatCircle.volume)
+    uns = ballon.main.locate(ballon.module.FlatCircle.unsightly)
+    init = ballon.main.locate(ballon.module.FlatCircle.__init__)
+    assert vol.predecessor(vol.filename) is uns
+
+    ballon.main.merge(ballon.cf.v2)
+    assert vol.predecessor(vol.filename) is not uns
+    assert vol.predecessor(vol.filename) is init
+
+
+def test_successor(ballon):
+    vol = ballon.main.locate(ballon.module.FlatCircle.volume)
+    uns = ballon.main.locate(ballon.module.FlatCircle.unsightly)
+    init = ballon.main.locate(ballon.module.FlatCircle.__init__)
+    assert init.successor(vol.filename) is uns
+
+    ballon.main.merge(ballon.cf.v2)
+    assert init.successor(vol.filename) is not uns
+    assert init.successor(vol.filename) is vol

@@ -29,16 +29,6 @@ def conform(self, obj1: FunctionType, obj2: FunctionType):
 
 
 @ovld
-def conform(self, obj1: type, obj2: type):
-    v1 = dict(vars(obj1).items())
-    for k, v in vars(obj2).items():
-        if k in v1:
-            self(v1[k], v)
-        else:
-            setattr(obj1, k, v)
-
-
-@ovld
 def conform(self, obj1, obj2):
     pass
 
