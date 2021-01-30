@@ -8,6 +8,8 @@ from typing import Optional
 
 from ovld import ovld
 
+from .utils import EventSource
+
 
 def splitlines(text):
     return re.findall(".*\n", text)
@@ -380,7 +382,7 @@ def _flatten(entries):
 class CodeFile:
     def __init__(self, filename, source=None):
         self.globals = None
-        self.listeners = []
+        self.activity = EventSource()
         self.filename = filename
         self.filenames = {filename}
         self.defnmap = {}
@@ -410,16 +412,6 @@ class CodeFile:
                         co_firstlineno=defn.firstlineno,
                         co_filename=defn.filename,
                     )
-
-    def add_listener(self, listener):
-        self.listeners.append(listener)
-
-    def remove_listener(self, listener):
-        self.listeners.remove(listener)
-
-    def emit(self, event):
-        for listener in self.listeners:
-            listener(event)
 
     def add_definition(self, defn, redirect=None):
         key = defn.firstlineno
@@ -585,7 +577,9 @@ class CodeFile:
 
     def _process_change(self, d1, d2):
         if not d1.compatible(d2):
-            self.emit(FailedUpdateOperation(codefile=self, definition=d1))
+            self.activity.emit(
+                FailedUpdateOperation(codefile=self, definition=d1)
+            )
             return
         d1.activate(d2.live)
         d2.node.decorator_list = []
@@ -598,7 +592,7 @@ class CodeFile:
         else:
             self.reline(d1, d2.firstlineno - 1, d2.lastlineno)
 
-        self.emit(UpdateOperation(codefile=self, definition=d1))
+        self.activity.emit(UpdateOperation(codefile=self, definition=d1))
 
     def _process_same(self, d1, d2):
         if d2.filename == self.filename:
@@ -620,7 +614,7 @@ class CodeFile:
         defn.refile(self.filename, insert_point + 1)
         self.reline(defn, insert_point, insert_point)
 
-        self.emit(AddOperation(codefile=self, definition=defn))
+        self.activity.emit(AddOperation(codefile=self, definition=defn))
 
     def _process_deletion(self, defn):
         for defn2 in defn.scope():
@@ -630,7 +624,7 @@ class CodeFile:
         if defn.filename == self.filename:
             self.reline(defn, defn.firstlineno - 1, defn.lastlineno)
 
-        self.emit(DeleteOperation(codefile=self, definition=defn))
+        self.activity.emit(DeleteOperation(codefile=self, definition=defn))
 
     def reline(self, defn, start, end):
         lines = defn.format_lines() if defn.active else []

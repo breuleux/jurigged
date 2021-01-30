@@ -12,7 +12,8 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 from . import codefile
-from .register import glob_filter, registry
+from .register import registry
+from .utils import glob_filter
 
 log = logging.getLogger(__name__)
 T = blessed.Terminal()
@@ -75,7 +76,7 @@ class Watcher:
     def __init__(self, registry):
         self.observer = Observer()
         self.registry = registry
-        self.registry.add_listener(self.on_prepare)
+        self.registry.precache_activity.register(self.on_prepare)
 
     def on_prepare(self, module_name, filename):
         JuriggedHandler(self, filename).schedule(self.observer)

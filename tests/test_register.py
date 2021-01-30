@@ -55,7 +55,7 @@ def test_registry_prepare(tmod):
     import ya_1  # noqa
 
     # Should call lambda regarding the previous prepare(ya_1)
-    reg.add_listener(lambda *args: log.append(args))
+    reg.precache_activity.register(lambda *args: log.append(args))
     assert log == [("ya_1", tmod.rel("ya_1.py"))]
 
     tmod.imp("za", mangle=mangle)

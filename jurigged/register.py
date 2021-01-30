@@ -1,4 +1,3 @@
-import fnmatch
 import importlib.util
 import logging
 import os
@@ -8,20 +7,9 @@ from types import FunctionType
 from _frozen_importlib_external import SourceFileLoader
 
 from .codefile import CodeFile
+from .utils import EventSource, glob_filter
 
 log = logging.getLogger(__name__)
-
-
-def glob_filter(pattern):
-    if pattern.startswith("~"):
-        pattern = os.path.expanduser(pattern)
-    elif not pattern.startswith("/"):
-        pattern = os.path.abspath(pattern)
-
-    def watcher(filename):
-        return fnmatch.fnmatch(filename, pattern)
-
-    return watcher
 
 
 class Registry:
@@ -31,13 +19,8 @@ class Registry:
         self.precache = {}
         # Cache of CodeFile (lazy)
         self.cache = {}
-        self.listeners = []
+        self.precache_activity = EventSource(save_history=True)
         self._log = None
-
-    def add_listener(self, listener):
-        for filename, (module_name, _, _) in self.precache.items():
-            listener(module_name, filename)
-        self.listeners.append(listener)
 
     def set_logger(self, log):
         self._log = log
@@ -54,8 +37,7 @@ class Registry:
                     f.read(),
                     os.path.getmtime(filename),
                 )
-            for listener in self.listeners:
-                listener(module_name, filename)
+            self.precache_activity.emit(module_name, filename)
 
     def get(self, filename):
         if filename in self.cache:
@@ -65,9 +47,9 @@ class Registry:
             module_name, cached_source, mtime = self.precache[filename]
             if module_name not in sys.modules:
                 return None
-            cf = CodeFile(filename, source=cached_source)  # , mtime=mtime)
+            cf = CodeFile(filename, source=cached_source)
             cf.discover(sys.modules[module_name])
-            cf.add_listener(self.log)
+            cf.activity.register(self.log)
             self.cache[filename] = cf
             return cf
 
