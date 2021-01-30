@@ -141,11 +141,7 @@ def cli():  # pragma: no cover
         description="Run a Python script so that it is live-editable."
     )
     parser.add_argument(
-        "path",
-        metavar="PATH",
-        type=os.path.abspath,
-        help="Path to the script to run",
-        nargs="?",
+        "path", metavar="PATH", help="Path to the script to run", nargs="?"
     )
     parser.add_argument(
         "--verbose",
@@ -190,14 +186,15 @@ def cli():  # pragma: no cover
             runpy.run_module(opts.module, run_name="__main__")
 
     elif opts.path:
+        path = os.path.abspath(opts.path)
         watcher = watch(**watch_args, autostart=False)
-        if pattern(opts.path):
+        if pattern(path):
             # It won't auto-trigger through runpy, probably some idiosyncracy of
             # module resolution
-            watcher.registry.prepare("__main__", opts.path)
+            watcher.registry.prepare("__main__", path)
         watcher.start()
         sys.argv[1:] = opts.rest
-        runpy.run_path(opts.path, run_name="__main__")
+        runpy.run_path(path, run_name="__main__")
 
     else:
         watch(**watch_args)

@@ -86,6 +86,10 @@ class Registry:
         defn = cf.defnmap.get(lineno, None)
         return cf, defn
 
+    def find_module(self, module):
+        self.prepare(module.__name__, module.__file__)
+        return self.get(module.__file__)
+
     def find_function(self, fn):
         if not isinstance(fn, FunctionType):
             return None, None

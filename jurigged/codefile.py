@@ -513,6 +513,7 @@ class CodeFile:
         return same, changes, additions, deletions
 
     def merge(self, codefile, partial=False):
+        self.dirty = True
         self.filenames.update(codefile.filenames)
         same, changes, additions, deletions = self.match_definitions(
             codefile, update_parents=True
@@ -655,10 +656,11 @@ class CodeFile:
         for defn in self.definitions:
             if defn.live:
                 defn.saved = defn.source
+        self.dirty = False
 
     def refresh(self):
         new_source = open(self.filename).read()
-        if new_source != self.source:
+        if new_source != self.source or self.dirty:
             cf = CodeFile(self.filename, source=new_source)
             self.merge(cf)
             self.set_source(new_source)

@@ -2,6 +2,7 @@ import linecache
 from itertools import count
 
 from .codefile import CodeFile, splitlines
+from .register import registry
 
 _count = count(1)
 
@@ -22,8 +23,20 @@ class Recoder:
         cf = CodeFile(filename=filename, source=new_code)
         self.codefile.merge(cf, partial=True)
         self.source = new_code
-        self.saved = False
 
     def commit(self):
         self.codefile.commit()
-        self.saved = True
+
+    def revert(self):
+        self.codefile.refresh()
+
+
+def module_recoder(module):
+    cf = registry.find_module(module)
+    return Recoder(name=module.__name__, codefile=cf)
+
+
+def function_recoder(fn):
+    cf, defn = registry.find_function(fn)
+    name = f"{fn.__module__}.{fn.__qualname__}"
+    return cf and Recoder(name=name, codefile=cf)
