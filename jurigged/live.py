@@ -1,3 +1,4 @@
+import argparse
 import code
 import logging
 import os
@@ -72,6 +73,11 @@ def default_logger(event: object):
     print(event)
 
 
+def conservative_logger(event):
+    if isinstance(event, Exception):
+        default_logger(event)
+
+
 class Watcher:
     def __init__(self, registry):
         self.observer = Observer()
@@ -117,26 +123,82 @@ class JuriggedHandler(FileSystemEventHandler):
         observer.schedule(self, self.filename)
 
 
-def watch(pattern="./*.py", logger=default_logger, registry=registry):
-    registry.auto_register(filter=glob_filter(pattern))
+def watch(
+    pattern="./*.py", logger=default_logger, registry=registry, autostart=True
+):
+    registry.auto_register(
+        filter=glob_filter(pattern) if isinstance(pattern, str) else pattern
+    )
     registry.set_logger(logger)
     watcher = Watcher(registry)
-    watcher.start()
+    if autostart:
+        watcher.start()
     return watcher
 
 
-def cli():
-    registry.auto_register()
-    registry.set_logger(default_logger)
-    if len(sys.argv) > 1:
-        _, filename, *argv = sys.argv
-        filename = os.path.abspath(filename)
-        del sys.modules["__main__"]
-        watcher = Watcher(registry)
-        registry.prepare("__main__", filename)
+def cli():  # pragma: no cover
+    parser = argparse.ArgumentParser(
+        description="Run a Python script so that it is live-editable."
+    )
+    parser.add_argument(
+        "path",
+        metavar="PATH",
+        type=os.path.abspath,
+        help="Path to the script to run",
+        nargs="?",
+    )
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Show watched files and changes as they happen",
+    )
+    parser.add_argument(
+        "--watch",
+        "-w",
+        metavar="PATH",
+        help="Wildcard path/directory for which files to watch",
+    )
+    parser.add_argument(
+        "-m",
+        dest="module",
+        metavar="MODULE",
+        help="Module or module:function to run",
+    )
+    parser.add_argument(
+        "rest", metavar="...", nargs=argparse.REMAINDER, help="Script arguments"
+    )
+    opts = parser.parse_args()
+
+    pattern = glob_filter(opts.watch or ".")
+    watch_args = {
+        "pattern": pattern,
+        "logger": default_logger if opts.verbose else conservative_logger,
+    }
+
+    if opts.module:
+        watcher = watch(**watch_args)
+        if opts.path is not None:
+            sys.argv[1] = opts.path
+        sys.argv[2:] = opts.rest
+
+        if ":" in opts.module:
+            module, func = opts.module.split(":", 1)
+            __import__(module, fromlist=[])
+            getattr(sys.modules[module], func)()
+        else:
+            runpy.run_module(opts.module, run_name="__main__")
+
+    elif opts.path:
+        watcher = watch(**watch_args, autostart=False)
+        if pattern(opts.path):
+            # It won't auto-trigger through runpy, probably some idiosyncracy of
+            # module resolution
+            watcher.registry.prepare("__main__", opts.path)
         watcher.start()
-        runpy.run_path(filename, run_name="__main__")
+        sys.argv[1:] = opts.rest
+        runpy.run_path(opts.path, run_name="__main__")
+
     else:
-        watcher = Watcher(registry)
-        watcher.start()
+        watch(**watch_args)
         code.interact()

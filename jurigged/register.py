@@ -65,7 +65,10 @@ class Registry:
                 and module_name is not None
                 and filter(filename)
             ):
-                self.prepare(module_name, filename)
+                try:
+                    self.prepare(module_name, filename)
+                except (UnicodeDecodeError, OSError):  # pragma: no cover
+                    pass
 
         for name, module in sys.modules.items():
             filename = getattr(module, "__file__", None)

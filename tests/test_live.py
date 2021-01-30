@@ -2,24 +2,31 @@ import builtins
 import time
 
 from jurigged import codefile
-from jurigged.live import WatchOperation, default_logger, watch
+from jurigged.live import (
+    WatchOperation,
+    conservative_logger as conlog,
+    default_logger,
+    watch,
+)
 from jurigged.register import Registry
 
 from .common import one_test_per_assert
 from .test_codefile import apple_file as apple, tmod  # noqa
 
 
-def _capture(obj):
+def _capture(obj, logger=default_logger):
     value = []
     old_print = print
     builtins.print = lambda *args: value.append(" ".join(map(str, args)))
-    default_logger(obj)
+    logger(obj)
     builtins.print = old_print
-    return value[0]
+    return "\n".join(value)
 
 
-def _std(cls, cf, lineno):
-    return _capture(cls(codefile=cf, definition=cf.defnmap[lineno]))
+def _std(cls, cf, lineno, logger=default_logger):
+    return _capture(
+        cls(codefile=cf, definition=cf.defnmap[lineno]), logger=logger
+    )
 
 
 @one_test_per_assert
@@ -48,6 +55,20 @@ def test_logger(apple):
     assert "TypeError" in _capture(TypeError("hello"))
     assert "SyntaxError" in _capture(SyntaxError("oh no"))
     assert _capture(12345) == "12345"
+
+
+@one_test_per_assert
+def test_conservative_logger(apple):
+    assert _capture(TypeError("hello"), logger=conlog) == _capture(
+        TypeError("hello")
+    )
+    assert _capture(SyntaxError("oh no"), logger=conlog) == _capture(
+        SyntaxError("oh no")
+    )
+    assert _capture(SyntaxError("oh no"), logger=conlog) == _capture(
+        SyntaxError("oh no")
+    )
+    assert _std(codefile.DeleteOperation, apple, 23, logger=conlog) == ""
 
 
 def test_watch(tmod):

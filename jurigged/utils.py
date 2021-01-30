@@ -29,6 +29,9 @@ def glob_filter(pattern):
     elif not pattern.startswith("/"):
         pattern = os.path.abspath(pattern)
 
+    if os.path.isdir(pattern):
+        pattern = os.path.join(pattern, "*")
+
     def matcher(filename):
         return fnmatch.fnmatch(filename, pattern)
 

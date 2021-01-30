@@ -36,6 +36,8 @@ def tmod(scope="module"):
 def test_glob_filter():
     assert glob_test("*.py", rel("hello.py"))
     assert glob_test("./*.py", rel("hello.py"))
+    assert glob_test(".", rel("hello.py"))
+    assert glob_test("./", rel("hello.py"))
 
     assert glob_test("~/*.py", user("hello.py"))
 
