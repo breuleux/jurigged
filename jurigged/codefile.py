@@ -9,7 +9,7 @@ from typing import Optional
 from ovld import ovld
 
 
-def _split(text):
+def splitlines(text):
     return re.findall(".*\n", text)
 
 
@@ -212,11 +212,6 @@ class Definition:
 
     def renumber(self, firstlineno, lastlineno=None, all_lines=None):
         assert firstlineno > 0
-        obj = self.object
-        if isinstance(obj, FunctionType):
-            obj.__code__ = obj.__code__.replace(
-                co_firstlineno=firstlineno, co_filename=self.filename
-            )
         if lastlineno is None:
             delta = firstlineno - self.firstlineno
             lastlineno = self.lastlineno + delta
@@ -249,7 +244,7 @@ class Definition:
         src = textwrap.indent(self.live, " " * self.indent)
         if not src.endswith("\n"):
             src += "\n"
-        return _split(src)
+        return splitlines(src)
 
 
 @dataclass
@@ -388,22 +383,33 @@ class CodeFile:
         self.listeners = []
         self.filename = filename
         self.filenames = {filename}
+        self.defnmap = {}
+        self.definitions = IDSet()
         if source is None:
             source = open(filename).read()
-        if not source.endswith("\n"):
-            source += "\n"
-        self.source = source
-        self.next_lines = _split(source)
+        self.set_source(source)
         tree = ast.parse(source, filename=filename)
         results = _flatten(
             collect_definitions(
                 tree, Info(filename=filename, source=source, parent=None)
             )
         )
-        self.defnmap = {}
-        self.definitions = IDSet()
         for defn in results:
             self.add_definition(defn)
+
+    def set_source(self, source):
+        if not source.endswith("\n"):
+            source += "\n"
+        self.source = source
+        self.next_lines = splitlines(source)
+        for defn in self.definitions:
+            if defn.active:
+                obj = defn.object
+                if isinstance(obj, FunctionType):
+                    obj.__code__ = obj.__code__.replace(
+                        co_firstlineno=defn.firstlineno,
+                        co_filename=defn.filename,
+                    )
 
     def add_listener(self, listener):
         self.listeners.append(listener)
@@ -661,7 +667,7 @@ class CodeFile:
         new_source = "".join(self.next_lines)
         with open(self.filename, "w") as f:
             f.write(new_source)
-        self.source = new_source
+        self.set_source(new_source)
         for defn in self.definitions:
             if defn.live:
                 defn.saved = defn.source
@@ -671,7 +677,7 @@ class CodeFile:
         if new_source != self.source:
             cf = CodeFile(self.filename, source=new_source)
             self.merge(cf)
-            self.source = new_source
+            self.set_source(new_source)
 
 
 @dataclass
