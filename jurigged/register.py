@@ -20,6 +20,7 @@ class Registry:
         # Cache of CodeFile (lazy)
         self.cache = {}
         self.precache_activity = EventSource(save_history=True)
+        self.activity = EventSource()
         self._log = None
 
     def set_logger(self, log):
@@ -50,6 +51,8 @@ class Registry:
             cf = CodeFile(filename, source=cached_source)
             cf.discover(sys.modules[module_name])
             cf.activity.register(self.log)
+            # Basic forwarding of the CodeFile's events
+            cf.activity.register(self.activity.emit)
             self.cache[filename] = cf
             return cf
 
