@@ -12,7 +12,7 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 from . import codefile
-from .registry import registry
+from .registry import glob_filter, registry
 
 log = logging.getLogger(__name__)
 T = blessed.Terminal()
@@ -116,8 +116,8 @@ class JuriggedHandler(FileSystemEventHandler):
         observer.schedule(self, self.filename)
 
 
-def watch(pattern="./*.py", logger=default_logger):
-    registry.auto_register()
+def watch(pattern="./*.py", logger=default_logger, registry=registry):
+    registry.auto_register(filter=glob_filter(pattern))
     registry.set_logger(logger)
     watcher = Watcher(registry)
     watcher.start()

@@ -668,11 +668,10 @@ class CodeFile:
 
     def refresh(self):
         new_source = open(self.filename).read()
-        if new_source == self.source:
-            return
-        cf = CodeFile(self.filename, source=new_source)
-        self.merge(cf)
-        self.source = new_source
+        if new_source != self.source:
+            cf = CodeFile(self.filename, source=new_source)
+            self.merge(cf)
+            self.source = new_source
 
 
 @dataclass

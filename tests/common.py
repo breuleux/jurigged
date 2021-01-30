@@ -55,7 +55,7 @@ tmpcount = count()
 
 class TemporaryModule:
     def __init__(self):
-        d = tempfile.mkdtemp()
+        d = os.path.realpath(tempfile.mkdtemp())
         sys.path.append(d)
         self.path = d
 
