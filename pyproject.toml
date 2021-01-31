@@ -9,7 +9,7 @@ homepage = "https://github.com/breuleux/jurigged"
 repository = "https://github.com/breuleux/jurigged"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.8"
 ovld = "^0.2.7"
 watchdog = "^1.0.2"
 blessed = "^1.17.12"

@@ -3,6 +3,7 @@ import inspect
 import os
 import sys
 import tempfile
+import time
 from ast import NodeTransformer
 from itertools import count
 from textwrap import dedent
@@ -64,7 +65,11 @@ class TemporaryModule:
 
     def write(self, name, contents):
         path = self.rel(name)
-        open(path, "w").write(contents)
+        with open(path, "w") as f:
+            f.write(contents)
+        # A small wait before we can import the file seems necessary under Linux but I don't know why
+        if not os.environ.get("JURIGGED_FAST_TEST"):
+            time.sleep(0.01)
         return path
 
     def transfer(self, name, mangle=True):
