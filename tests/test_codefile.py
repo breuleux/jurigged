@@ -6,7 +6,7 @@ from types import SimpleNamespace as NS
 
 import pytest
 
-from jurigged.codefile import CodeFile, Definition, conform
+from jurigged.codefile import CodeFile, Definition, StaleException, conform
 
 from .common import TemporaryModule, one_test_per_assert
 from .snippets import apple
@@ -349,6 +349,12 @@ def test_merge_decorators_fail(chips):
     assert chips.module.munch(4) == 6
 
 
+def test_commit_noop(dandelion):
+    orig = dandelion.read()
+    dandelion.main.commit()
+    assert dandelion.read() == orig
+
+
 def test_commit(dandelion):
     orig = dandelion.read()
     dandelion.main.merge(dandelion.cf.v2)
@@ -364,6 +370,13 @@ def test_commit_partial(dandelion):
     assert dandelion.read() == orig
     dandelion.main.commit()
     assert dandelion.read() == dandelion.read("outcome")
+
+
+def test_commit_stale(dandelion):
+    dandelion.main.merge(dandelion.cf.v2)
+    open(dandelion.main.filename, "w").write("")
+    with pytest.raises(StaleException):
+        dandelion.main.commit()
 
 
 def test_functions_interface(elephant):

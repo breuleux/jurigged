@@ -11,6 +11,10 @@ from ovld import ovld
 from .utils import EventSource
 
 
+class StaleException(Exception):
+    pass
+
+
 def splitlines(text):
     return re.findall(".*\n", text)
 
@@ -402,6 +406,7 @@ class CodeFile:
                         co_firstlineno=defn.firstlineno,
                         co_filename=defn.filename,
                     )
+        self.dirty = False
 
     def add_definition(self, defn, redirect=None):
         key = defn.firstlineno
@@ -648,7 +653,13 @@ class CodeFile:
                 if defn.firstlineno >= line_min:
                     defn.renumber(defn.firstlineno + delta)
 
-    def commit(self):
+    def commit(self, check_stale=True):
+        if not self.dirty:
+            return
+        if check_stale and self.stale():
+            raise StaleException(
+                f"Cannot commit changes to {self.filename} because the file was changed."
+            )
         new_source = "".join(self.next_lines)
         with open(self.filename, "w") as f:
             f.write(new_source)
@@ -658,8 +669,17 @@ class CodeFile:
                 defn.saved = defn.source
         self.dirty = False
 
+    def read_source(self):
+        source = open(self.filename).read()
+        if not source.endswith("\n"):
+            source += "\n"
+        return source
+
+    def stale(self):
+        return self.read_source() != self.source
+
     def refresh(self):
-        new_source = open(self.filename).read()
+        new_source = self.read_source()
         if new_source != self.source or self.dirty:
             cf = CodeFile(self.filename, source=new_source)
             self.merge(cf)
