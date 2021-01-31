@@ -19,20 +19,39 @@ pip install jurigged
 
 ## Command line
 
-The simplest way to use jurigged is to add `-m jurigged` to your script invocation, or to use `jurigged` instead of `python`.
+The simplest way to use jurigged is to add `-m jurigged` to your script invocation, or to use `jurigged` instead of `python`. You can use `-v` to get feedback about what files are watched and what happens when you change a file.
 
 ```bash
-python -m jurigged script.py
+python -m jurigged -v script.py
 
 OR
 
-jurigged script.py
+jurigged -v script.py
 ```
 
 With no arguments given, it will start a live REPL:
 
 ```bash
 python -m jurigged
+```
+
+Full help:
+
+```
+usage: jurigged [-h] [--verbose] [--watch PATH] [-m MODULE] [PATH] ...
+
+Run a Python script so that it is live-editable.
+
+positional arguments:
+  PATH                  Path to the script to run
+  ...                   Script arguments
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --verbose, -v         Show watched files and changes as they happen
+  --watch PATH, -w PATH
+                        Wildcard path/directory for which files to watch
+  -m MODULE             Module or module:function to run
 ```
 
 
@@ -45,14 +64,37 @@ import jurigged
 jurigged.watch()
 ```
 
-By default all files in the current directory will be watched, but you can use `jurigged.watch("script.py")` to only watch a single file, or `jurigged.watch("/*.py")` to watch all modules.
+By default all files in the current directory will be watched, but you can use `jurigged.watch("script.py")` to only watch a single file, or `jurigged.watch("/")` to watch all modules.
 
 
-## What is it for?
+### Recoders
 
-* **Debugging:** Add `print` statements and `breakpoint()` to your code while it's running
-* **Development:** Develop new functionality and test it live without restarting your server
-* **Investigation:** Log additional metrics in running machine learning experiments
+Functions can be programmatically changed using a Recoder. Make one with `jurigged.function_recoder` or `jurigged.module_recoder`. This can be used to implement hot patching or mocking. The changes can also be written back to the filesystem.
+
+```python
+from jurigged import function_recoder, module_recoder
+
+def f(x):
+    return x * x
+
+assert f(2) == 4
+
+# Change the behavior of the function, but not in the original file
+recoder = function_recoder(f)
+recoder.patch("def f(x): return x * x * x")
+assert f(2) == 8
+
+# Revert changes
+recoder.revert()
+assert f(2) == 4
+
+# OR: write the patch to the original file itself
+recoder.commit()
+```
+
+`revert` will only revert up to the last `commit`, or to the original contents if there was no commit.
+
+`function_recoder` takes a function and `module_recoder` takes a module, but they both return essentially the same recoder: the patch is applied to the entire module file, so you can inject arbitrary code into a function's module like that (add imports etc.)
 
 
 ## Caveats
