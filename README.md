@@ -55,6 +55,33 @@ optional arguments:
 ```
 
 
+## Troubleshooting
+
+First, if there's a problem, use the verbose flag (`jurigged -v`) to get more information. It will output a `Watch <file>` statement for every file that it watches and `Update/Add/Delete <function>` statements when you update, add or delete a function in the original file and then save it.
+
+**The file is not being watched.**
+
+By default, scripts are watched in the current working directory. Try `jurigged -w <file>` to watch a specific file, or `jurigged -w /` to watch all files.
+
+**The file is watched, but nothing happens when I change the function.**
+
+It's possibly because you are using an editor that saves into a temporary swap file and moves it into place (vi does this). The `watchdog` library that Jurigged uses loses track of the file when that happens. Pending a better solution, you can try to configure your editor so that it writes to the file directly. For example, in vi, `:set nowritebackup` seems to do the trick (either put it in your .vimrc or execute it *before* you save for the first time).
+
+**Jurigged said it updated the function but it's still running the old code.**
+
+If you are editing the body of a for loop inside a function that's currently running, the changes will only be in effect the next time that function is called. A workaround is to extract the body of the for loop into its own helper function, which you can then edit. Alternatively, you can use [reloading](https://github.com/julvo/reloading) alongside Jurigged.
+
+Similarly, updating a generator or async function will not change the behavior of generators or async functions that are already running.
+
+**I can update some functions but not others.**
+
+There may be issues updating some functions when they are decorated or stashed in some data structure that Jurigged does not understand. Jurigged does have to find them to update them, unfortunately.
+
+**What does "failed update" mean?**
+
+Jurigged does not allow changing a function's decorators.
+
+
 ## API
 
 You can call `jurigged.watch()` to programmatically start watching for changes. This should also work within IPython or Jupyter as an alternative to the `%autoreload` magic.
