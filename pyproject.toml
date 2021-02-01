@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "jurigged"
-version = "0.1.0"
+version = "0.1.1"
 description = "Live update of Python functions"
 authors = ["Olivier Breuleux <breuleux@gmail.com>"]
 license = "MIT"
