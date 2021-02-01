@@ -56,7 +56,10 @@ def dig(self, obj, module_name):
     if id(obj) in self.seen:
         return set()
     elif hasattr(obj, "__functions__"):
-        return set(obj.__functions__)
+        try:
+            return set(obj.__functions__)
+        except Exception:  # pragma: no cover
+            return set()
     else:
         self.seen.add(id(obj))
         return self[type(obj), object](obj, module_name)
