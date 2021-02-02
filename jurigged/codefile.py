@@ -183,9 +183,12 @@ class Definition:
     def lockedlines(self):
         return self.sourcelines()[: self.nlock]
 
+    def prelude(self):
+        return "".join([line + "\n" for line in self.lockedlines()])
+
     def corresponds(self, defn):
-        assert isinstance(defn, Definition)
-        if self.type != defn.type:
+        assert defn is None or isinstance(defn, Definition)
+        if defn is None or self.type != defn.type:
             return False
         srcchk = self.type != "statement" or self.source == defn.source
         return (
@@ -259,7 +262,7 @@ class Info:
     replace = dc_replace
 
 
-def _definition_from_node(node, info, **fields):
+def _definition_from_node(node, info, start_from_body=False, **fields):
     if hasattr(node, "decorator_list"):
         firstlineno = min(
             [deco.lineno for deco in node.decorator_list] + [node.lineno]
@@ -269,13 +272,17 @@ def _definition_from_node(node, info, **fields):
     src = "\n".join(info.lines[firstlineno - 1 : node.end_lineno])
     indent = len(src) - len(src.lstrip())
     src = textwrap.dedent(src)
+    if start_from_body:
+        lineno = min([stmt.lineno for stmt in node.body])
+    else:
+        lineno = node.lineno
     defn = Definition(
         **fields,
         name=getattr(node, "name", None),
         filename=info.filename,
         firstlineno=firstlineno,
         lastlineno=node.end_lineno,
-        nlock=node.lineno - firstlineno,
+        nlock=lineno - firstlineno,
         parent=info.parent,
         children=[],
         indent=indent,
@@ -338,7 +345,7 @@ def collect_definitions(
 
 @ovld
 def collect_definitions(self, node: ast.ClassDef, info: Info):
-    defn = _definition_from_node(node, info, type="class")
+    defn = _definition_from_node(node, info, start_from_body=True, type="class")
     # Note: we DO go inside class definitions to collect methods
     defn.children = self(node.body, info.replace(parent=defn))
     return defn
@@ -672,7 +679,7 @@ class CodeFile:
             f.write(new_source)
         self.set_source(new_source)
         for defn in self.definitions:
-            if defn.live:
+            if defn.live is not None:
                 defn.saved = defn.source
         self.dirty = False
 
