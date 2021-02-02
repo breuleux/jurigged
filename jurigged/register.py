@@ -2,9 +2,10 @@ import importlib.util
 import logging
 import os
 import sys
-from types import FunctionType
+from types import CodeType, FunctionType, ModuleType
 
 from _frozen_importlib_external import SourceFileLoader
+from ovld import OvldMC, ovld
 
 from .codefile import CodeFile
 from .utils import EventSource, glob_filter
@@ -12,8 +13,9 @@ from .utils import EventSource, glob_filter
 log = logging.getLogger(__name__)
 
 
-class Registry:
+class Registry(metaclass=OvldMC):
     def __init__(self):
+        self.filename_to_module = {}
         # Cache of (module_name, file_contents, mtime)
         # A snapshot of the file contents may be saved before it might be modified
         self.precache = {}
@@ -30,7 +32,25 @@ class Registry:
         if self._log is not None:
             self._log(*args, **kwargs)
 
-    def prepare(self, module_name, filename):
+    def prepare(self, module_name=None, filename=None):
+        if filename is None:
+            assert module_name is not None
+            filename = sys.modules[module_name].__file__
+        elif module_name is None:
+            if filename in self.filename_to_module:
+                module_name = self.filename_to_module[filename]
+            else:
+                for module_name, module in sys.modules.items():
+                    fname = getattr(module, "__file__", None)
+                    if fname:
+                        self.filename_to_module[fname] = module_name
+                        if fname == filename:
+                            break
+                else:  # pragma: no cover
+                    raise Exception(
+                        f"Cannot find module that corresponds to {filename}"
+                    )
+
         if filename not in self.precache and filename not in self.cache:
             with open(filename) as f:
                 self.precache[filename] = (
@@ -39,6 +59,8 @@ class Registry:
                     os.path.getmtime(filename),
                 )
             self.precache_activity.emit(module_name, filename)
+
+        return module_name, filename
 
     def get(self, filename):
         if filename in self.cache:
@@ -57,6 +79,13 @@ class Registry:
             return cf
 
         return None
+
+    def get_at(self, filename, lineno):
+        cf = self.get(filename)
+        if cf is None:
+            return None, None
+        defn = cf.defnmap.get(lineno, None)
+        return cf, defn
 
     def auto_register(self, filter=glob_filter("./*.py")):
         def prep(module_name, filename):
@@ -79,24 +108,27 @@ class Registry:
         sniffer.install()
         return sniffer
 
-    def find(self, filename, lineno):
-        cf = self.get(filename)
-        if cf is None:
-            return None, None
-        defn = cf.defnmap.get(lineno, None)
-        return cf, defn
-
-    def find_module(self, module):
+    @ovld
+    def find(self, module: ModuleType):
         self.prepare(module.__name__, module.__file__)
         return self.get(module.__file__)
 
-    def find_function(self, fn):
-        if not isinstance(fn, FunctionType):
-            return None, None
-
+    @ovld
+    def find(self, fn: FunctionType):
         co = fn.__code__
         self.prepare(fn.__module__, co.co_filename)
-        return self.find(co.co_filename, co.co_firstlineno)
+        return self.get_at(co.co_filename, co.co_firstlineno)
+
+    @ovld
+    def find(self, co: CodeType):
+        self.prepare(filename=co.co_filename)
+        return self.get_at(co.co_filename, co.co_firstlineno)
+
+    @ovld
+    def find(self, cls: type):
+        _, filename = self.prepare(module_name=cls.__module__)
+        cf = self.get(filename)
+        return cf, cf.locate(cls)
 
 
 registry = Registry()

@@ -92,6 +92,6 @@ def test_recoder_registry(ballon):
             """
         )
     )
-    cf, defn = registry.find_function(ballon.module.inflate)
+    cf, defn = registry.find(ballon.module.inflate)
     assert cf is rec.codefile
     assert cf.filename == ballon.main.filename

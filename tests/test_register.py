@@ -117,21 +117,39 @@ def test_registry_find(tmod):
     sniff = reg.auto_register(glob_filter(tmod.rel("*.py")))
     zb = tmod.imp("zb", mangle=mangle)
 
-    cf, defn = reg.find_function(zb.quack)
+    cf, defn = reg.find(zb.quack)
     assert cf.filename == tmod.rel("zb_3.py")
     assert defn.object is zb.quack
 
-    cf, defn = reg.find_function(_blah)
+    cf, defn = reg.find(zb.Duck)
+    assert cf.filename == tmod.rel("zb_3.py")
+    assert defn.object is zb.Duck
+
+    cf, defn = reg.find(zb.Duck.quack)
+    assert cf.filename == tmod.rel("zb_3.py")
+    assert defn.object is zb.Duck.quack
+
+    cf, defn = reg.find(_blah)
     assert cf.filename == __file__
     assert defn.object is _blah
 
-    cf, defn = reg.find_function(_blah(3, 4))
+    cf, defn = reg.find(_blah.__code__)
+    assert cf.filename == __file__
+    assert defn.object is _blah
+
+    # We do it a second time to trigger the cached entry for filename -> module_name
+    cf, defn = reg.find(_blah.__code__)
+    assert cf.filename == __file__
+    assert defn.object is _blah
+
+    cf, defn = reg.find(_blah(3, 4))
     assert cf.filename == __file__
     assert defn is None
 
-    assert reg.find_function(1234) == (None, None)
+    with pytest.raises(TypeError):
+        reg.find(1234)
 
-    assert reg.find("inexistent", 3) == (None, None)
+    assert reg.get_at("inexistent", 3) == (None, None)
 
     sniff.uninstall()
 

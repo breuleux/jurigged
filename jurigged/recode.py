@@ -33,11 +33,11 @@ class Recoder:
 
 
 def module_recoder(module):
-    cf = registry.find_module(module)
+    cf = registry.find(module)
     return Recoder(name=module.__name__, codefile=cf)
 
 
 def function_recoder(fn):
-    cf, defn = registry.find_function(fn)
+    cf, defn = registry.find(fn)
     name = f"{fn.__module__}.{fn.__qualname__}"
     return cf and Recoder(name=name, codefile=cf)
