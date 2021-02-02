@@ -22,7 +22,7 @@ class Recoder:
         filename = virtual_file(self.name, new_code)
         cf = CodeFile(filename=filename, source=new_code)
         registry.cache[filename] = self.codefile
-        self.codefile.merge(cf, partial=True)
+        self.codefile.merge(cf, deletable=False)
         self.source = new_code
 
     def commit(self):

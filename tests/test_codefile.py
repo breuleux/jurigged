@@ -282,7 +282,7 @@ def test_merge_partial(ballon):
 
     assert cir.volume() == -1
     assert cir.unsightly() == "yuck"
-    ballon.main.merge(ballon.cf.v2, partial=True)
+    ballon.main.merge(ballon.cf.v2, deletable=False)
     assert cir.volume() == 0
     assert cir.unsightly() == "yuck"
 
@@ -339,13 +339,13 @@ def test_merge_back_and_forth(ballon):
 
 def test_merge_decorators(chips):
     assert chips.module.munch(4) == 6
-    chips.main.merge(chips.cf.mod, partial=True)
+    chips.main.merge(chips.cf.mod, deletable=False)
     assert chips.module.munch(4, 2) == 8
 
 
 def test_merge_decorators_fail(chips):
     assert chips.module.munch(4) == 6
-    chips.main.merge(chips.cf.bad, partial=True)
+    chips.main.merge(chips.cf.bad, deletable=False)
     assert chips.module.munch(4) == 6
 
 
@@ -366,10 +366,21 @@ def test_commit(dandelion):
 
 def test_commit_partial(dandelion):
     orig = dandelion.read()
-    dandelion.main.merge(dandelion.cf.repl, partial=True)
+    dandelion.main.merge(dandelion.cf.repl, deletable=False)
     assert dandelion.read() == orig
     dandelion.main.commit()
     assert dandelion.read() == dandelion.read("outcome")
+
+
+def test_commit_partial_2(dandelion):
+    orig = dandelion.read()
+    dandelion.main.merge(
+        dandelion.cf.repl,
+        deletable=[dandelion.main.locate(dandelion.module.plack)],
+    )
+    assert dandelion.read() == orig
+    dandelion.main.commit()
+    assert dandelion.read() == dandelion.read("outcome2")
 
 
 def test_commit_stale(dandelion):

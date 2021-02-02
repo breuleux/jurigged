@@ -520,14 +520,16 @@ class CodeFile:
 
         return same, changes, additions, deletions
 
-    def merge(self, codefile, partial=False):
+    def merge(self, codefile, deletable=True):
         self.dirty = True
         self.filenames.update(codefile.filenames)
         same, changes, additions, deletions = self.match_definitions(
             codefile, update_parents=True
         )
-        if partial:
+        if not deletable:
             deletions = []
+        elif isinstance(deletable, (tuple, list, set, frozenset)):
+            deletions = [d for d in deletions if d in deletable]
 
         for defn in additions:
             self._process_addition(defn)
@@ -540,6 +542,8 @@ class CodeFile:
 
         for defn in deletions:
             self._process_deletion(defn)
+
+        return [*additions, *[d1 for d1, _ in changes]]
 
     def link(self, defn, obj):
         defn.activate(defn.source)
