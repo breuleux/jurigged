@@ -21,6 +21,7 @@ class Recoder:
     def patch(self, new_code):
         filename = virtual_file(self.name, new_code)
         cf = CodeFile(filename=filename, source=new_code)
+        registry.cache[filename] = self.codefile
         self.codefile.merge(cf, partial=True)
         self.source = new_code
 

@@ -1,6 +1,7 @@
 import textwrap
 
 from jurigged.recode import Recoder, function_recoder, module_recoder
+from jurigged.register import registry
 
 from .test_codefile import ballon, tmod  # noqa
 
@@ -78,3 +79,19 @@ def test_function_recoder(ballon):
         )
     )
     assert ballon.module.inflate(4) == 40
+
+
+def test_recoder_registry(ballon):
+    rec = function_recoder(ballon.module.inflate)
+    assert ballon.module.inflate(4) == 8
+    rec.patch(
+        textwrap.dedent(
+            """
+            def inflate(x):
+                return x * 10
+            """
+        )
+    )
+    cf, defn = registry.find_function(ballon.module.inflate)
+    assert cf is rec.codefile
+    assert cf.filename == ballon.main.filename
