@@ -1,5 +1,8 @@
 import linecache
 from itertools import count
+from types import FunctionType, ModuleType
+
+from ovld import ovld
 
 from .codefile import CodeFile, splitlines
 from .register import registry
@@ -32,12 +35,14 @@ class Recoder:
         self.codefile.refresh()
 
 
-def module_recoder(module):
+@ovld
+def make_recoder(module: ModuleType):
     cf = registry.find(module)
-    return Recoder(name=module.__name__, codefile=cf)
+    return cf and Recoder(name=module.__name__, codefile=cf)
 
 
-def function_recoder(fn):
-    cf, defn = registry.find(fn)
-    name = f"{fn.__module__}.{fn.__qualname__}"
+@ovld
+def make_recoder(obj: (FunctionType, type)):
+    cf, defn = registry.find(obj)
+    name = f"{obj.__module__}.{obj.__qualname__}"
     return cf and Recoder(name=name, codefile=cf)

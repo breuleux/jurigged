@@ -1,6 +1,6 @@
 import textwrap
 
-from jurigged.recode import Recoder, function_recoder, module_recoder
+from jurigged.recode import Recoder, make_recoder
 from jurigged.register import registry
 
 from .test_codefile import ballon, tmod  # noqa
@@ -54,7 +54,7 @@ def test_recoder(ballon):
 
 
 def test_module_recoder(ballon):
-    rec = module_recoder(ballon.module)
+    rec = make_recoder(ballon.module)
     assert ballon.module.inflate(4) == 8
     rec.patch(
         textwrap.dedent(
@@ -68,7 +68,7 @@ def test_module_recoder(ballon):
 
 
 def test_function_recoder(ballon):
-    rec = function_recoder(ballon.module.inflate)
+    rec = make_recoder(ballon.module.inflate)
     assert ballon.module.inflate(4) == 8
     rec.patch(
         textwrap.dedent(
@@ -81,8 +81,29 @@ def test_function_recoder(ballon):
     assert ballon.module.inflate(4) == 40
 
 
+def test_class_recoder(ballon):
+    rec = make_recoder(ballon.module.FlatCircle)
+    assert ballon.module.FlatCircle(10).volume() == -1
+    rec.patch(
+        textwrap.dedent(
+            """
+            class FlatCircle:
+                def __init__(self, radius):
+                    self.radius = radius
+
+                def circumference(self):
+                    return 2 * math.pi * self.radius
+
+                def volume(self):
+                    return self.radius
+            """
+        )
+    )
+    assert ballon.module.FlatCircle(10).volume() == 10
+
+
 def test_recoder_registry(ballon):
-    rec = function_recoder(ballon.module.inflate)
+    rec = make_recoder(ballon.module.inflate)
     assert ballon.module.inflate(4) == 8
     rec.patch(
         textwrap.dedent(

@@ -96,10 +96,10 @@ By default all files in the current directory will be watched, but you can use `
 
 ### Recoders
 
-Functions can be programmatically changed using a Recoder. Make one with `jurigged.function_recoder` or `jurigged.module_recoder`. This can be used to implement hot patching or mocking. The changes can also be written back to the filesystem.
+Functions can be programmatically changed using a Recoder. Make one with `jurigged.make_recoder`. This can be used to implement hot patching or mocking. The changes can also be written back to the filesystem.
 
 ```python
-from jurigged import function_recoder, module_recoder
+from jurigged import make_recoder
 
 def f(x):
     return x * x
@@ -107,7 +107,7 @@ def f(x):
 assert f(2) == 4
 
 # Change the behavior of the function, but not in the original file
-recoder = function_recoder(f)
+recoder = make_recoder(f)
 recoder.patch("def f(x): return x * x * x")
 assert f(2) == 8
 
@@ -121,7 +121,7 @@ recoder.commit()
 
 `revert` will only revert up to the last `commit`, or to the original contents if there was no commit.
 
-`function_recoder` takes a function and `module_recoder` takes a module, but they both return essentially the same recoder: the patch is applied to the entire module file, so you can inject arbitrary code into a function's module like that (add imports etc.)
+A recoder also allows you to add imports, helper functions and the like to a patch.
 
 
 ## Caveats
