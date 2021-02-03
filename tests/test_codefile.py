@@ -121,6 +121,11 @@ def firmament(tmod):
     return CodeFileCollection(tmod, "firmament")
 
 
+@pytest.fixture
+def glamour(tmod):
+    return CodeFileCollection(tmod, "glamour")
+
+
 def f1(x):
     return x * 2
 
@@ -436,6 +441,13 @@ def test_regen_statements(firmament):
     firmament.main.commit()
     print(firmament.read().strip())
     assert firmament.read().strip() == firmament.read("result").strip()
+
+
+@pytest.mark.xfail(reason="There is an issue merging closures")
+def test_change_supermethod(glamour):
+    assert glamour.module.Scarf(5).swagger() == 10
+    glamour.main.merge(glamour.cf.mod)
+    assert glamour.module.Scarf(5).swagger() == 15
 
 
 def test_predecessor(ballon):
