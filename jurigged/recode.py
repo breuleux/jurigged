@@ -51,7 +51,9 @@ class Recoder:
         filename = virtual_file(self.name, new_code)
         cf = CodeFile(filename=filename, source=new_code)
         registry.cache[filename] = self.codefile
+
         yield cf
+
         self._listening = False
         self.watched = self.codefile.merge(
             cf, deletable=self.deletable and self.focus and [self.focus]

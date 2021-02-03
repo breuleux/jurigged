@@ -92,12 +92,46 @@ def test_function_recoder(ballon):
             )
         )
 
+    with pytest.raises(ValueError):
+        rec.patch(
+            textwrap.dedent(
+                """
+                x = 10
+                def inflate(x):
+                    return x * 10
+                """
+            )
+        )
+
+    rec.patch_module(
+        textwrap.dedent(
+            """
+            x = 10
+            def infloote(x):
+                return x * 100
+            """
+        )
+    )
+    assert ballon.module.infloote(4) == 400
+    assert ballon.module.x == 10
+
 
 def test_function_recoder_delete(ballon):
     rec = make_recoder(ballon.module.inflate, deletable=True)
     assert ballon.module.inflate(4) == 8
     rec.patch("")
     assert not hasattr(ballon.module, "inflate")
+
+    # Reinsert
+    rec.patch(
+        textwrap.dedent(
+            """
+            def inflate(x):
+                return x * 10
+            """
+        )
+    )
+    assert ballon.module.inflate(4) == 40
 
 
 def test_class_recoder(ballon):
