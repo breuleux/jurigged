@@ -76,60 +76,54 @@ class IDSet:
 @ovld.dispatch(initial_state=lambda: {"seen": set()})
 def dig(self, obj, module_name):
     if id(obj) in self.seen:
-        return set()
+        return
     elif hasattr(obj, "__functions__"):
         try:
-            return set(obj.__functions__)
+            yield from obj.__functions__
         except Exception:  # pragma: no cover
-            return set()
+            return
     else:
         self.seen.add(id(obj))
-        return self[type(obj), object](obj, module_name)
+        yield from self[type(obj), object](obj, module_name)
 
 
 @ovld
 def dig(self, obj: FunctionType, module_name):
-    rval = {inspect.unwrap(obj)}
+    yield inspect.unwrap(obj)
     for x in obj.__closure__ or []:
-        rval.update(self(x.cell_contents, module_name))
-    return rval
+        yield from self(x.cell_contents, module_name)
 
 
 @ovld
 def dig(self, obj: ModuleType, module_name):
-    rval = set()
     if obj.__name__ == module_name:
         for value in vars(obj).values():
-            rval.update(self(value, module_name))
-    return rval
+            yield from self(value, module_name)
 
 
 @ovld
 def dig(self, obj: type, module_name):
-    rval = {obj}
+    yield obj
     if obj.__module__ == module_name:
         for value in vars(obj).values():
-            rval.update(self(value, module_name))
-    return rval
+            yield from self(value, module_name)
 
 
 @ovld
 def dig(self, obj: (classmethod, staticmethod), module_name):
-    return self(obj.__func__, module_name)
+    yield from self(obj.__func__, module_name)
 
 
 @ovld
 def dig(self, obj: property, module_name):
-    return (
-        self(obj.fget, module_name)
-        | self(obj.fset, module_name)
-        | self(obj.fdel, module_name)
-    )
+    yield from self(obj.fget, module_name)
+    yield from self(obj.fset, module_name)
+    yield from self(obj.fdel, module_name)
 
 
 @ovld
 def dig(self, obj: object, module_name):
-    return set()
+    yield from []
 
 
 @dataclass
