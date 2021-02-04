@@ -121,7 +121,7 @@ recoder.commit()
 
 `revert` will only revert up to the last `commit`, or to the original contents if there was no commit.
 
-A recoder also allows you to add imports, helper functions and the like to a patch.
+A recoder also allows you to add imports, helper functions and the like to a patch, but you have to use `recoder.patch_module(...)` in that case.
 
 
 ## Caveats
