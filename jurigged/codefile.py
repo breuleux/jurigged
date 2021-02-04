@@ -753,6 +753,13 @@ class CodeFile:
                 if defn.firstlineno >= line_min:
                     defn.renumber(defn.firstlineno + delta)
 
+    def dotpath(self, defn):
+        defns = [defn, *defn.parent_chain()]
+        parts = [defn.name for defn in defns if defn.name is not None]
+        if self is not None and self.module is not None:
+            parts.append(self.module.__name__)
+        return ".".join(reversed(parts))
+
     def commit(self, check_stale=True):
         if not self.dirty:
             return
@@ -793,11 +800,7 @@ class CodeFileOperation:
 
     @property
     def dotpath(self):
-        defns = [self.definition, *self.definition.parent_chain()]
-        parts = [defn.name for defn in defns if defn.name is not None]
-        if self.codefile is not None and self.codefile.module is not None:
-            parts.append(self.codefile.module.__name__)
-        return ".".join(reversed(parts))
+        return self.codefile.dotpath(self.definition)
 
 
 @dataclass

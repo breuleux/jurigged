@@ -2,7 +2,7 @@ import linecache
 import textwrap
 from contextlib import contextmanager
 from itertools import count
-from types import FunctionType, ModuleType
+from types import CodeType, FunctionType, ModuleType
 
 from ovld import ovld
 
@@ -119,9 +119,10 @@ def make_recoder(module: ModuleType, deletable=False):
 
 
 @ovld
-def make_recoder(obj: (FunctionType, type), deletable=False):
+def make_recoder(obj: (CodeType, FunctionType, type), deletable=False):
     cf, defn = registry.find(obj)
-    name = f"{obj.__module__}.{obj.__qualname__}"
-    return cf and Recoder(
-        name=name, codefile=cf, focus=defn, deletable=deletable
-    )
+    if cf:
+        name = cf.dotpath(defn)
+        return Recoder(name=name, codefile=cf, focus=defn, deletable=deletable)
+    else:
+        return None

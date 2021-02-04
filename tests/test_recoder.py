@@ -1,3 +1,4 @@
+import re
 import textwrap
 
 import pytest
@@ -114,6 +115,15 @@ def test_function_recoder(ballon):
     )
     assert ballon.module.infloote(4) == 400
     assert ballon.module.x == 10
+
+
+def test_code_recoder(ballon):
+    rec1 = make_recoder(ballon.module.inflate)
+    rec2 = make_recoder(ballon.module.inflate.__code__)
+    assert rec1.codefile is rec2.codefile
+    assert rec1.focus is rec2.focus
+    assert re.match(r"ballon:main__[0-9]+\.inflate", rec1.name)
+    assert rec1.name == rec2.name
 
 
 def test_function_recoder_delete(ballon):
