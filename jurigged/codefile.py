@@ -8,10 +8,15 @@ from typing import Optional
 
 from ovld import ovld
 
+from .parse import Variables, variables
 from .utils import EventSource
 
 
 class StaleException(Exception):
+    pass
+
+
+class ConformException(Exception):
     pass
 
 
@@ -29,7 +34,24 @@ def conform(self, obj1, obj2):
 
 @ovld
 def conform(self, obj1: FunctionType, obj2: FunctionType):
-    obj1.__code__ = obj2.__code__
+    if obj1.__closure__:
+        origvars = obj1.__code__.co_freevars
+        closurevars = getattr(obj2, "##closure", None)
+        if origvars != closurevars:
+            msg = (
+                f"Cannot replace closure `{obj1.__name__}` because the free "
+                f"variables changed. Before: {origvars}; after: {closurevars}."
+            )
+            if ("__class__" in origvars) ^ ("__class__" in (closurevars or ())):
+                msg += " Note: The use of `super` entails the `__class__` free variable."
+            raise ConformException(msg)
+        else:
+            # It doesn't matter what we provide for obj2's closure because it's
+            # going to use obj1's __closure__.
+            clos = obj2(*closurevars)
+            obj1.__code__ = clos.__code__
+    else:
+        obj1.__code__ = obj2.__code__
 
 
 @ovld
@@ -126,6 +148,7 @@ class Definition:
     live: str
     node: object = field(compare=False)
     object: object
+    variables: Variables
     pred: Optional["Definition"] = field(compare=False, default=None)
     succ: Optional["Definition"] = field(compare=False, default=None)
 
@@ -226,21 +249,57 @@ class Definition:
             defnp.lastlineno = max(d.lastlineno for d in defnp.children)
 
     def evaluate(self, glb):
-        code = compile(
-            (
-                self.node
-                if isinstance(self.node, ast.Module)
-                else ast.Module(body=[self.node], type_ignores=[])
-            ),
-            mode="exec",
-            filename=self.filename,
-        )
+        closure = False
+        if isinstance(self.node, ast.Module):
+            node = self.node
+        elif (
+            isinstance(self.node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and self.variables.closures
+        ):
+            closure = True
+            names = tuple(sorted(self.variables.closures))
+            wrap = ast.FunctionDef(
+                name="##create_closure",
+                args=ast.arguments(
+                    posonlyargs=[],
+                    args=[
+                        ast.arg(arg=name, lineno=self.firstlineno, col_offset=0)
+                        for name in names
+                    ],
+                    vararg=None,
+                    kwonlyargs=[],
+                    kw_defaults=[],
+                    kwarg=None,
+                    defaults=[],
+                ),
+                body=[
+                    self.node,
+                    ast.Return(ast.Name(id=self.node.name, ctx=ast.Load())),
+                ],
+                decorator_list=[],
+                returns=None,
+                lineno=self.firstlineno,
+                end_lineno=self.lastlineno,
+                col_offset=0,
+                end_col_offset=1,
+            )
+            ast.fix_missing_locations(wrap)
+            node = ast.Module(body=[wrap], type_ignores=[])
+        else:
+            node = ast.Module(body=[self.node], type_ignores=[])
+
+        code = compile(node, mode="exec", filename=self.filename)
         if self.name is None:
             exec(code, glb, glb)
         else:
             lcl = {}
             exec(code, glb, lcl)
-            return lcl[self.name]
+            if closure:
+                creator = lcl["##create_closure"]
+                setattr(creator, "##closure", names)
+                return creator
+            else:
+                return lcl[self.name]
 
     def format_lines(self):
         src = textwrap.indent(self.live, " " * self.indent)
@@ -255,6 +314,7 @@ class Info:
     source: str
     parent: Definition
     lines: list = None
+    varinfo: Variables = None
 
     def __post_init__(self):
         self.lines = self.source.split("\n")
@@ -290,8 +350,13 @@ def _definition_from_node(node, info, start_from_body=False, **fields):
         saved=src,
         live=src,
         node=node,
+        variables=info.varinfo.get(node, Variables()).replace(),
         object=None,
     )
+    closable = set()
+    for p in defn.parent_chain():
+        closable |= p.variables.assigned
+    defn.variables.closures = defn.variables.free & closable
     return defn
 
 
@@ -395,9 +460,17 @@ class CodeFile:
             source = open(filename).read()
         self.set_source(source)
         tree = ast.parse(source, filename=filename)
+        varinfo = {}
+        variables(tree, varinfo)
         results = _flatten(
             collect_definitions(
-                tree, Info(filename=filename, source=source, parent=None)
+                tree,
+                Info(
+                    filename=filename,
+                    source=source,
+                    parent=None,
+                    varinfo=varinfo,
+                ),
             )
         )
         for defn in results:
@@ -588,13 +661,32 @@ class CodeFile:
     def _process_change(self, d1, d2):
         if not d1.compatible(d2):
             self.activity.emit(
-                FailedUpdateOperation(codefile=self, definition=d1)
+                FailedUpdateOperation(
+                    codefile=self,
+                    definition=d1,
+                    reason=f"Cannot update `{d1.name}` because the decorators changed.",
+                )
             )
             return
         d1.activate(d2.live)
         d2.node.decorator_list = []
         new = d2.evaluate(self.globals)
-        conform(d1.object, new)
+        try:
+            conform(d1.object, new)
+        except ConformException as exc:
+            self.activity.emit(
+                FailedUpdateOperation(
+                    codefile=self, definition=d1, reason=exc.args[0]
+                )
+            )
+            return
+        except Exception as exc:  # pragma: no cover
+            self.activity.emit(
+                FailedUpdateOperation(
+                    codefile=self, definition=d1, reason=str(exc)
+                )
+            )
+            return
         self.add_definition(d2, redirect=d1)
 
         if d2.filename != self.filename:
@@ -727,9 +819,10 @@ class UpdateOperation(CodeFileOperation):
 class FailedUpdateOperation(CodeFileOperation):
     codefile: CodeFile
     definition: Definition
+    reason: str
 
     def __str__(self):
-        return f"Failed update {self.dotpath} @L{self.definition.firstlineno}"
+        return f"Failed update {self.dotpath} @L{self.definition.firstlineno}: {self.reason}"
 
 
 @dataclass

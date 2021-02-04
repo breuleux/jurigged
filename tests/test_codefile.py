@@ -86,6 +86,7 @@ def chk(codefile, name, l0, ln, fn, parent=None, src=None, nlock=0):
         live=src,
         node=None,  # not compared for equality
         object=fn,
+        variables=fu.variables,
     )
 
 
@@ -443,11 +444,16 @@ def test_regen_statements(firmament):
     assert firmament.read().strip() == firmament.read("result").strip()
 
 
-@pytest.mark.xfail(reason="There is an issue merging closures")
 def test_change_supermethod(glamour):
     assert glamour.module.Scarf(5).swagger() == 10
     glamour.main.merge(glamour.cf.mod)
     assert glamour.module.Scarf(5).swagger() == 15
+
+
+def test_remove_super(glamour):
+    assert glamour.module.Scarf(5).swagger() == 10
+    glamour.main.merge(glamour.cf.mod2)
+    assert glamour.module.Scarf(5).swagger() == 10
 
 
 def test_predecessor(ballon):

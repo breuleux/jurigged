@@ -23,9 +23,9 @@ def _capture(obj, logger=default_logger):
     return "\n".join(value)
 
 
-def _std(cls, cf, lineno, logger=default_logger):
+def _std(cls, cf, lineno, logger=default_logger, **kw):
     return _capture(
-        cls(codefile=cf, definition=cf.defnmap[lineno]), logger=logger
+        cls(codefile=cf, definition=cf.defnmap[lineno], **kw), logger=logger
     )
 
 
@@ -48,8 +48,8 @@ def test_logger(apple):
         == "Delete tests.snippets.apple.Orchard.cortland @L23"
     )
     assert (
-        _std(codefile.FailedUpdateOperation, apple, 23)
-        == "Failed update tests.snippets.apple.Orchard.cortland @L23"
+        _std(codefile.FailedUpdateOperation, apple, 23, reason="Woo!")
+        == "Failed update tests.snippets.apple.Orchard.cortland @L23: Woo!"
     )
     assert _capture(WatchOperation("some_file.py")) == "Watch some_file.py"
     assert "TypeError" in _capture(TypeError("hello"))
