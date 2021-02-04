@@ -36,22 +36,23 @@ class Registry(metaclass=OvldMC):
         if filename is None:
             assert module_name is not None
             filename = sys.modules[module_name].__file__
-        elif module_name is None:
-            if filename in self.filename_to_module:
-                module_name = self.filename_to_module[filename]
-            else:
-                for module_name, module in sys.modules.items():
-                    fname = getattr(module, "__file__", None)
-                    if fname:
-                        self.filename_to_module[fname] = module_name
-                        if fname == filename:
-                            break
-                else:  # pragma: no cover
-                    raise Exception(
-                        f"Cannot find module that corresponds to {filename}"
-                    )
 
         if filename not in self.precache and filename not in self.cache:
+            if module_name is None:
+                if filename in self.filename_to_module:
+                    module_name = self.filename_to_module[filename]
+                else:
+                    for module_name, module in sys.modules.items():
+                        fname = getattr(module, "__file__", None)
+                        if fname:
+                            self.filename_to_module[fname] = module_name
+                            if fname == filename:
+                                break
+                    else:  # pragma: no cover
+                        raise Exception(
+                            f"Cannot find module that corresponds to {filename}"
+                        )
+
             with open(filename) as f:
                 self.precache[filename] = (
                     module_name,
@@ -111,7 +112,7 @@ class Registry(metaclass=OvldMC):
     @ovld
     def find(self, module: ModuleType):
         self.prepare(module.__name__, module.__file__)
-        return self.get(module.__file__)
+        return self.get(module.__file__), None
 
     @ovld
     def find(self, fn: FunctionType):

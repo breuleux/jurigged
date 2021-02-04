@@ -118,8 +118,8 @@ def test_function_recoder(ballon):
 
 
 def test_code_recoder(ballon):
-    rec1 = make_recoder(ballon.module.inflate)
-    rec2 = make_recoder(ballon.module.inflate.__code__)
+    rec1 = make_recoder(ballon.module.inflate.__code__)
+    rec2 = make_recoder(ballon.module.inflate)
     assert rec1.codefile is rec2.codefile
     assert rec1.focus is rec2.focus
     assert re.match(r"ballon:main__[0-9]+\.inflate", rec1.name)
@@ -193,6 +193,30 @@ def test_recoder_registry(ballon):
     cf, defn = registry.find(ballon.module.inflate)
     assert cf is rec.codefile
     assert cf.filename == ballon.main.filename
+
+
+def test_recoder_patch_registry(ballon):
+    rec = make_recoder(ballon.module.inflate)
+    assert ballon.module.inflate(4) == 8
+    rec.patch(
+        textwrap.dedent(
+            """
+            def inflate(x):
+                return x * 10
+            """
+        )
+    )
+
+    # ballon.module.inflate.__code__.co_filename has changed, so this could
+    # behave badly
+    rec2 = make_recoder(ballon.module.inflate)
+    assert rec.codefile is rec2.codefile
+    assert rec.focus is rec2.focus
+
+    # Test with __code__ directly
+    rec2 = make_recoder(ballon.module.inflate.__code__)
+    assert rec.codefile is rec2.codefile
+    assert rec.focus is rec2.focus
 
 
 def test_recoder_out_of_sync(ballon):

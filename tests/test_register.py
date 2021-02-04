@@ -129,18 +129,18 @@ def test_registry_find(tmod):
     assert cf.filename == tmod.rel("zb_3.py")
     assert defn.object is zb.Duck.quack
 
+    cf, defn = reg.find(_blah.__code__)
+    assert cf.filename == __file__
+    assert defn.object is _blah
+
     cf, defn = reg.find(_blah)
     assert cf.filename == __file__
     assert defn.object is _blah
 
-    cf, defn = reg.find(_blah.__code__)
-    assert cf.filename == __file__
-    assert defn.object is _blah
-
-    # We do it a second time to trigger the cached entry for filename -> module_name
-    cf, defn = reg.find(_blah.__code__)
-    assert cf.filename == __file__
-    assert defn.object is _blah
+    # Trigger the cached entry for filename -> module_name
+    cf, defn = reg.find(glob_filter.__code__)
+    assert "jurigged/utils.py" in cf.filename
+    assert defn.object is glob_filter
 
     cf, defn = reg.find(_blah(3, 4))
     assert cf.filename == __file__
