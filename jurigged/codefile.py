@@ -9,7 +9,7 @@ from typing import Optional
 from ovld import ovld
 
 from .parse import Variables, variables
-from .utils import EventSource
+from .utils import EventSource, IDSet
 
 
 class StaleException(Exception):
@@ -50,20 +50,6 @@ def conform(self, obj1: FunctionType, obj2: FunctionType):
 @ovld
 def conform(self, obj1, obj2):
     pass
-
-
-class IDSet:
-    def __init__(self):
-        self._data = {}
-
-    def add(self, x):
-        self._data[id(x)] = x
-
-    def remove(self, x):
-        del self._data[id(x)]
-
-    def __iter__(self):
-        return iter(self._data.values())
 
 
 @ovld.dispatch(initial_state=lambda: {"seen": set()})

@@ -23,6 +23,20 @@ class EventSource(list):
             self._history.append((args, kwargs))
 
 
+class IDSet:
+    def __init__(self):
+        self._data = {}
+
+    def add(self, x):
+        self._data[id(x)] = x
+
+    def remove(self, x):
+        del self._data[id(x)]
+
+    def __iter__(self):
+        return iter(self._data.values())
+
+
 def glob_filter(pattern):
     if pattern.startswith("~"):
         pattern = os.path.expanduser(pattern)
