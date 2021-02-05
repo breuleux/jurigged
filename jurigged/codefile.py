@@ -34,24 +34,17 @@ def conform(self, obj1, obj2):
 
 @ovld
 def conform(self, obj1: FunctionType, obj2: FunctionType):
-    if obj1.__closure__:
-        origvars = obj1.__code__.co_freevars
-        closurevars = getattr(obj2, "##closure", None)
-        if origvars != closurevars:
-            msg = (
-                f"Cannot replace closure `{obj1.__name__}` because the free "
-                f"variables changed. Before: {origvars}; after: {closurevars}."
-            )
-            if ("__class__" in origvars) ^ ("__class__" in (closurevars or ())):
-                msg += " Note: The use of `super` entails the `__class__` free variable."
-            raise ConformException(msg)
-        else:
-            # It doesn't matter what we provide for obj2's closure because it's
-            # going to use obj1's __closure__.
-            clos = obj2(*closurevars)
-            obj1.__code__ = clos.__code__
-    else:
-        obj1.__code__ = obj2.__code__
+    fv1 = obj1.__code__.co_freevars
+    fv2 = obj2.__code__.co_freevars
+    if fv1 != fv2:
+        msg = (
+            f"Cannot replace closure `{obj1.__name__}` because the free "
+            f"variables changed. Before: {fv1}; after: {fv2}."
+        )
+        if ("__class__" in (fv1 or ())) ^ ("__class__" in (fv2 or ())):
+            msg += " Note: The use of `super` entails the `__class__` free variable."
+        raise ConformException(msg)
+    obj1.__code__ = obj2.__code__
 
 
 @ovld
@@ -290,8 +283,11 @@ class Definition:
             exec(code, glb, lcl)
             if closure:
                 creator = lcl["##create_closure"]
-                setattr(creator, "##closure", names)
-                return creator
+                # It does not matter what arguments we provide here, because we will move the
+                # function's __code__ elsewhere, so it will use a different closure
+                fn = creator(*names)
+                fn.__name__ = self.name
+                return fn
             else:
                 return lcl[self.name]
 
