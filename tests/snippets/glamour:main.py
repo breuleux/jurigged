@@ -8,4 +8,4 @@ class Wearable:
 
 class Scarf(Wearable):
     def swagger(self):
-        return super().swagger() * 2
+        return super(Scarf, self).swagger() * 2
