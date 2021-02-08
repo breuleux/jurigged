@@ -599,7 +599,7 @@ class CodeFile:
         for defn in deletions:
             self._process_deletion(defn)
 
-        return [*additions, *[d1 for d1, _ in changes]]
+        return same, changes, additions, deletions
 
     def link(self, defn, obj):
         defn.activate(defn.source)

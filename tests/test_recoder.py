@@ -251,3 +251,37 @@ def test_recoder_out_of_sync(ballon):
     rec1.repatch()
     assert ballon.module.inflate(4) == 40
     rec1.commit()
+
+
+def test_recoder_out_of_sync_2(ballon):
+    rec1 = make_recoder(ballon.module.inflate)
+    rec2 = make_recoder(ballon.module.inflate)
+    assert ballon.module.inflate(4) == 8
+    # Patch to what it was before
+    rec1.patch(
+        textwrap.dedent(
+            """
+            def inflate(x):
+                return x * 2
+            """
+        )
+    )
+
+    rec2.patch(
+        textwrap.dedent(
+            """
+            def inflate(x):
+                return x * 20
+            """
+        )
+    )
+    assert ballon.module.inflate(4) == 80
+
+    rec2.commit()
+    with pytest.raises(OutOfSyncException):
+        rec1.commit()
+
+    assert ballon.module.inflate(4) == 80
+    rec1.repatch()
+    assert ballon.module.inflate(4) == 8
+    rec1.commit()

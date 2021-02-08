@@ -55,9 +55,14 @@ class Recoder:
         yield cf
 
         self._listening = False
-        self.watched = self.codefile.merge(
+        (same, changes, additions, deletions,) = self.codefile.merge(
             cf, deletable=self.deletable and self.focus and [self.focus]
         )
+        self.watched = [
+            *[d1 for d1, d2 in same],
+            *[d1 for d1, d2 in changes],
+            *additions,
+        ]
         self.set_status("live")
         self._current_patch = new_code
         self._listening = True
