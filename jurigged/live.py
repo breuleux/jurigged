@@ -174,9 +174,10 @@ def cli():  # pragma: no cover
 
     if opts.module:
         watcher = watch(**watch_args)
+        new_args = list(opts.rest)
         if opts.path is not None:
-            sys.argv[1] = opts.path
-        sys.argv[2:] = opts.rest
+            new_args.insert(0, opts.path)
+        sys.argv[1:] = new_args
 
         if ":" in opts.module:
             module, func = opts.module.split(":", 1)
