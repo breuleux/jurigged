@@ -62,3 +62,7 @@ class FakeApple:
     @color.setter
     def color(self, value):
         self._color = value
+
+
+out_of_place = 12
+del out_of_place

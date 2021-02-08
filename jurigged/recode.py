@@ -121,4 +121,10 @@ def make_recoder(module: ModuleType, deletable=False):
 @ovld
 def make_recoder(obj: (CodeType, FunctionType, type), deletable=False):
     cf, defn = registry.find(obj)
-    return cf and defn and Recoder(name=cf.dotpath(defn), codefile=cf, focus=defn, deletable=deletable)
+    return (
+        cf
+        and defn
+        and Recoder(
+            name=cf.dotpath(defn), codefile=cf, focus=defn, deletable=deletable
+        )
+    )

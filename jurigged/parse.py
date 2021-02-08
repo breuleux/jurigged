@@ -27,7 +27,7 @@ class Variables:
 def variables(self, seq: list, mapping):
     fvs = Variables()
     for node in seq:
-        fvs = fvs | variables(node, mapping)
+        fvs = fvs | self(node, mapping)
     return fvs
 
 
@@ -56,6 +56,8 @@ def variables(self, node: ast.Name, mapping):
         return Variables(read=read)
     elif isinstance(node.ctx, ast.Store):
         return Variables(assigned={node.id})
+    else:
+        return Variables(read={node.id})
 
 
 @ovld
