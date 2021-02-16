@@ -100,7 +100,7 @@ class Registry(metaclass=OvldMC):
                 except (UnicodeDecodeError, OSError):  # pragma: no cover
                     pass
 
-        for name, module in sys.modules.items():
+        for name, module in list(sys.modules.items()):
             filename = getattr(module, "__file__", None)
             module_name = getattr(module, "__name__", None)
             prep(module_name, filename)
