@@ -53,13 +53,14 @@ class Registry(metaclass=OvldMC):
                             f"Cannot find module that corresponds to {filename}"
                         )
 
-            with open(filename) as f:
-                self.precache[filename] = (
-                    module_name,
-                    f.read(),
-                    os.path.getmtime(filename),
-                )
-            self.precache_activity.emit(module_name, filename)
+            if os.path.exists(filename):
+                with open(filename) as f:
+                    self.precache[filename] = (
+                        module_name,
+                        f.read(),
+                        os.path.getmtime(filename),
+                    )
+                self.precache_activity.emit(module_name, filename)
 
         return module_name, filename
 
