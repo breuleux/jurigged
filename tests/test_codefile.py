@@ -25,7 +25,7 @@ class CodeFileCollection:
         }
         module = tmod.imp(f"{basename}:main")
         main_cf = CodeFile(module.__file__)
-        main_cf.discover(module)
+        main_cf.discover(vars(module), module.__name__)
 
         self.module = module
         self.main = main_cf

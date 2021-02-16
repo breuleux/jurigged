@@ -52,6 +52,11 @@ def conform(self, obj1, obj2):
     pass
 
 
+@dataclass
+class Vars:
+    contents: dict
+
+
 @ovld.dispatch(initial_state=lambda: {"seen": set()})
 def dig(self, obj, module_name):
     if id(obj) in self.seen:
@@ -63,7 +68,7 @@ def dig(self, obj, module_name):
             return
     else:
         self.seen.add(id(obj))
-        yield from self[type(obj), object](obj, module_name)
+        yield from self.call(obj, module_name)
 
 
 @ovld
@@ -76,8 +81,7 @@ def dig(self, obj: FunctionType, module_name):
 @ovld
 def dig(self, obj: ModuleType, module_name):
     if obj.__name__ == module_name:
-        for value in vars(obj).values():
-            yield from self(value, module_name)
+        yield from dig(Vars(vars(obj)), module_name)
 
 
 @ovld
@@ -91,6 +95,12 @@ def dig(self, obj: type, module_name):
 @ovld
 def dig(self, obj: (classmethod, staticmethod), module_name):
     yield from self(obj.__func__, module_name)
+
+
+@ovld
+def dig(self, obj: Vars, module_name):
+    for value in obj.contents.values():
+        yield from self(value, module_name)
 
 
 @ovld
@@ -498,13 +508,13 @@ class CodeFile:
             return None
 
     def associate(self, obj, module_name=None):
-        module_name = module_name or self.module.__name__
+        module_name = module_name or self.module_name
         for x in dig(obj, module_name):
             defn = self.locate(x)
             if defn is not None:
                 defn.object = x
 
-    def discover(self, module):
+    def discover(self, module, module_name=None):
         """Find and associate this CodeFile's definitions to the module's objects.
 
         The module is searched for functions and classes. If a function's name and
@@ -514,9 +524,16 @@ class CodeFile:
         Arguments:
             module: A module object from which to get definitions.
         """
-        self.module = module
-        self.globals = vars(module)
-        self.associate(module)
+        if isinstance(module, dict):
+            self.module = None
+            self.module_name = module_name
+            self.globals = module
+            self.associate(Vars(module))
+        else:
+            self.module = module
+            self.module_name = module.__name__
+            self.globals = vars(module)
+            self.associate(module)
 
     def match_definitions(self, codefile, update_parents=False):
         """Match up definitions from another codefile object.
