@@ -55,7 +55,7 @@ class Recoder:
         yield cf
 
         self._listening = False
-        (same, changes, additions, deletions,) = self.codefile.merge(
+        (same, changes, additions, deletions) = self.codefile.merge(
             cf, deletable=self.deletable and self.focus and [self.focus]
         )
         self.watched = [

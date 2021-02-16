@@ -21,7 +21,7 @@ class ConformException(Exception):
 
 
 def splitlines(text):
-    return re.findall(".*\n", text)
+    return re.findall(".*\n|.+$", text)
 
 
 @ovld.dispatch
