@@ -436,6 +436,8 @@ def _flatten(entries):
 
 class CodeFile:
     def __init__(self, filename, source=None):
+        self.module = None
+        self.module_name = None
         self.globals = None
         self.activity = EventSource()
         self.filename = filename
