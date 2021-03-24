@@ -77,10 +77,6 @@ Similarly, updating a generator or async function will not change the behavior o
 
 There may be issues updating some functions when they are decorated or stashed in some data structure that Jurigged does not understand. Jurigged does have to find them to update them, unfortunately.
 
-**What does "failed update" mean?**
-
-Jurigged does not allow changing a function's decorators.
-
 
 ## API
 
@@ -134,12 +130,7 @@ Jurigged works in a surprisingly large number of situations, but there are sever
   * You can use [reloading](https://github.com/julvo/reloading) in addition to Jurigged if you want to be able to modify a running for loop.
 * **Changing initializers or attribute names may cause errors on existing instances.**
   * Jurigged modifies all existing instances of a class, but it will not re-run `__init__` or rename attributes on existing instances, so you can easily end up with broken objects (new methods, but old data).
-* **Existing closures can't be changed.**
-  * Unlike top-level functions where all existing pointers will automagically use the new code, *existing* closures will keep using their old code.
-  * Here, by "closure" I mean a function defined inside another function, and by "existing" I mean closure instances that were already returned by their enclosing function or stored in a data structure, so they're basically in the wild and jurigged can't see them.
-* **Decorators cannot be changed.**
-  * Most wrapped/decorated functions can be changed, but that's because jurigged plows through closures to find the original functions and changes them in place (usually that does the trick). So even though it works on many decorated functions, jurigged does *not* re-run decorators, and because of this it will refuse to update if the decorators have changed.
-  * Workaround: you can delete a function, save, paste it back, save again (in short: Ctrl+X, Ctrl+S, Ctrl+V, Ctrl+S). Jurigged will forget about the function once it's deleted and then it will count as an addition rather than a change. In that case it will run the new decorators. However, existing pointers to the old function won't be updated.
+* **Updating the code of a decorator or a closure may or may not work.** Jurigged will do its best, but it is possible that some closures will be updated but not others.
 * **Decorators that look at/tweak function code will probably not update properly.**
   * Wrappers that try to compile/JIT Python code won't know about jurigged and won't be able to redo their work for the new code.
   * They can be made to work if they set the (jurigged-specific) `__conform__` attribute on the old function. `__conform__` takes a reference to the function that should replace it.
@@ -154,7 +145,7 @@ In a nutshell, jurigged works as follows:
 3. Crawl through a module to find function objects and match them to definitions.
    * It will go through class members, follow functions' `__wrapped__` and `__closure__` pointers, and so on.
 4. When a file is modified, re-parse it into a set of definitions and match them against the original, yielding a set of changes, additions and deletions.
-5. For a change, exec the new code (with the decorators stripped out), then take the resulting function's internal `__code__` pointer and shove it into the old one (this may not work on closures, but jurigged ignores closures).
+5. For a change, exec the new code (with the decorators stripped out, if they haven't changed), then take the resulting function's internal `__code__` pointer and shove it into the old one. If the change fails, it will be reinterpreted as a deletion of the old code followed by the addition of the new code.
 6. New additions are run in the module namespace.
 
 
