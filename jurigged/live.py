@@ -15,6 +15,7 @@ from watchdog.observers import Observer
 from . import codetools
 from .register import registry
 from .utils import glob_filter
+from .version import version
 
 log = logging.getLogger(__name__)
 T = blessed.Terminal()
@@ -145,6 +146,11 @@ def cli():  # pragma: no cover
         help="Show watched files and changes as they happen",
     )
     parser.add_argument(
+        "--version",
+        action="store_true",
+        help="Print version",
+    )
+    parser.add_argument(
         "--watch",
         "-w",
         metavar="PATH",
@@ -167,7 +173,11 @@ def cli():  # pragma: no cover
         "logger": default_logger if opts.verbose else conservative_logger,
     }
 
-    if opts.module:
+    if opts.version:
+        print(version)
+        sys.exit()
+
+    elif opts.module:
         watcher = watch(**watch_args)
         new_args = list(opts.rest)
         if opts.path is not None:
