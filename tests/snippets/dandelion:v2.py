@@ -2,9 +2,6 @@ class Bee:
     def __init__(self, zs):
         self.buzz = "bu" + "z" * zs
 
-def color():
-    return "yellow"
-
 class Flower:
     def __init__(self, name, npetals):
         self.name = name
@@ -15,6 +12,9 @@ class Flower:
 
     def sing(self):
         return f"O {self.name}, how beautiful are thee {self.npetals} petals!"
+
+def color():
+    return "yellow"
 
 def pluck(n):
     """New pluck.

@@ -6,7 +6,13 @@ from types import CodeType, FunctionType, ModuleType
 
 from ovld import ovld
 
-from .codefile import CodeFile, CodeFileOperation, splitlines
+from .codetools import (
+    CodeChunk,
+    CodeFile,
+    CodeFileOperation,
+    ModuleCode,
+    splitlines,
+)
 from .register import registry
 from .utils import EventSource
 
@@ -43,43 +49,49 @@ class Recoder:
     def _listen(self, event):
         if self._listening:
             if isinstance(event, CodeFileOperation):
-                if event.definition in self.watched:
+                if event.code in self.watched:
                     self.set_status("out-of-sync")
 
     @contextmanager
     def _patching(self, new_code):
+        new_code = new_code.strip()
+
         filename = virtual_file(self.name, new_code)
-        cf = CodeFile(filename=filename, source=new_code)
+        cf = CodeFile(
+            filename=filename,
+            source=new_code,
+            module_name=self.codefile.module_name,
+        )
         registry.cache[filename] = self.codefile
 
         yield cf
 
         self._listening = False
         (same, changes, additions, deletions) = self.codefile.merge(
-            cf, deletable=self.deletable and self.focus and [self.focus]
+            cf, allow_deletions=self.deletable and self.focus and [self.focus]
         )
-        self.watched = [
-            *[d1 for d1, d2 in same],
-            *[d1 for d1, d2 in changes],
-            *additions,
-        ]
+        self.watched = [*same, *changes, *additions]
         self.set_status("live")
         self._current_patch = new_code
         self._listening = True
 
     def patch(self, new_code):
         def _encompasses(defn):
-            if self.focus.corresponds(defn):
-                return True
-            elif defn.parent:
-                return _encompasses(defn.parent)
+            for x in self.focus.hierarchy():
+                if x.correspond(defn).corresponds:
+                    return True
+            for x in defn.hierarchy():
+                if x.correspond(self.focus).corresponds:
+                    return True
+            return False
 
         if self.focus is None:
             return self.patch_module(new_code)
 
-        for parent in self.focus.parent_chain():
-            new_code = textwrap.indent(new_code, "    ")
-            new_code = f"{parent.prelude()}{new_code}"
+        for parent in list(self.focus.hierarchy())[1:]:
+            if not isinstance(parent, ModuleCode):
+                new_code = textwrap.indent(new_code, "    ")
+                new_code = f"{parent.header()}{new_code}"
 
         with self._patching(new_code) as cf:
             (
@@ -87,8 +99,9 @@ class Recoder:
                 changes,
                 additions,
                 deletions,
-            ) = self.codefile.match_definitions(cf, update_parents=False)
-            seq = [*[d1 for d1, d2 in changes], *additions]
+            ) = self.codefile.code.correspond(cf.code).summary()
+            seq = [*changes, *additions]
+            seq = [d for d in seq if not isinstance(d, CodeChunk)]
             if not all(_encompasses(culprit := d) for d in seq):
                 raise ValueError(
                     f"Recoder for {self.focus.name} cannot be used to define {culprit.name}"  # noqa: F821
@@ -130,6 +143,6 @@ def make_recoder(obj: (CodeType, FunctionType, type), deletable=False):
         cf
         and defn
         and Recoder(
-            name=cf.dotpath(defn), codefile=cf, focus=defn, deletable=deletable
+            name=defn.dotpath(), codefile=cf, focus=defn, deletable=deletable
         )
     )

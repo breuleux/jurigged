@@ -6,7 +6,7 @@ from types import ModuleType, SimpleNamespace as NS
 
 import pytest
 
-from jurigged.codefile import CodeFile
+from jurigged.codetools import CodeFile
 
 from .common import TemporaryModule
 
@@ -76,10 +76,14 @@ class ModuleGen:
         return __import__(tempname)
 
     def codefile(self, tmod, imp=False):
-        cf = CodeFile(filename=tmod.rel(f"{self.name}.py"), source=self.gen())
+        cf = CodeFile(
+            filename=tmod.rel(f"{self.name}.py"),
+            source=self.gen(),
+            module_name=self.name,
+        )
         if imp:
             module = self.imp(tmod)
-            cf.discover(module)
+            cf.associate(module)
         return cf
 
     def prune(self, module):
@@ -147,7 +151,7 @@ class FunctionGen:
         expected = sum(args)
         if self.nlines > 1:
             expected += ((self.nlines - 3) * (self.nlines - 2)) / 2
-        print("TEST", self.name, value, expected, self.nlines)
+        # print("TEST", self.name, value, expected, self.nlines)
         if value != expected:
             raise AssertionError(f"{value} != {expected} in {self.name}")
 
@@ -273,6 +277,14 @@ def rstate():
     return r
 
 
+# BAD: 1253
+# BAD: 1390
+# BAD: 1591
+# BAD: 1857
+
+# BAD: 981
+
+
 @pytest.mark.parametrize("seed", range(100))
 def test_edit_sequence(seed):
     rstate = random.Random()
@@ -302,18 +314,14 @@ def test_edit_sequence(seed):
         mod = mod.change(params)
         # Merge the modified code with the main CodeFile
         cf2 = mod.codefile(tmod)
-        cf.merge(cf2)
+
+        order = "original" if rstate.random() < 0.5 else "new"
+
+        cf.merge(cf2, order=order)
+
         # Commit sometimes
         if params.draw(params.commit_probability):
             cf.commit()
-            # We check that we wrote to the file the functions it should contain.
-            # This isn't a 100% foolproof check because it just indiscriminately
-            # sorts all functions by name, but it'd be a hassle to check the order,
-            # given that it won't be the same as the order in cf2
-            cf_reread = CodeFile(filename=cf.filename)
-            oc1 = ordered_code(cf)
-            oc2 = ordered_code(cf_reread)
-            assert oc1 == oc2
 
             # Copy the committed file under a different name, import it, and check
             # that it behaves the same

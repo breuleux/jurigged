@@ -3,7 +3,7 @@ import sys
 
 import pytest
 
-from jurigged import codefile
+from jurigged import codetools
 from jurigged.register import ImportSniffer, Registry, glob_filter
 
 from .common import TemporaryModule, one_test_per_assert
@@ -100,7 +100,11 @@ def test_registry_get(tmod):
     cf.refresh()
     assert za.word == "pirate"
 
-    assert log == [codefile.AddOperation, codefile.DeleteOperation]
+    assert log == [
+        codetools.AddOperation,
+        codetools.DeleteOperation,
+        codetools.UpdateOperation,
+    ]
     sniff.uninstall()
 
 
@@ -112,6 +116,10 @@ def _blah(x, y):
 
 
 def test_registry_find(tmod):
+    def _obj(defn):
+        (obj,) = defn.objects
+        return obj
+
     mangle = "_3"
     reg = Registry()
     sniff = reg.auto_register(glob_filter(tmod.rel("*.py")))
@@ -119,32 +127,32 @@ def test_registry_find(tmod):
 
     cf, defn = reg.find(zb.quack)
     assert cf.filename == tmod.rel("zb_3.py")
-    assert defn.object is zb.quack
+    assert _obj(defn) is zb.quack
 
     cf, defn = reg.find(zb.Duck)
     assert cf.filename == tmod.rel("zb_3.py")
-    assert defn.object is zb.Duck
+    assert _obj(defn) is zb.Duck
 
     cf, defn = reg.find(zb.Duck.quack)
     assert cf.filename == tmod.rel("zb_3.py")
-    assert defn.object is zb.Duck.quack
+    assert _obj(defn) is zb.Duck.quack
 
     cf, defn = reg.find(_blah.__code__)
     assert cf.filename == __file__
-    assert defn.object is _blah
+    assert _obj(defn) is _blah
 
     cf, defn = reg.find(_blah)
     assert cf.filename == __file__
-    assert defn.object is _blah
+    assert _obj(defn) is _blah
 
     # Trigger the cached entry for filename -> module_name
     cf, defn = reg.find(glob_filter.__code__)
     assert "jurigged/utils.py" in cf.filename
-    assert defn.object is glob_filter
+    assert _obj(defn) is glob_filter
 
     cf, defn = reg.find(_blah(3, 4))
     assert cf.filename == __file__
-    assert defn is None
+    assert defn is not None
 
     with pytest.raises(TypeError):
         reg.find(1234)

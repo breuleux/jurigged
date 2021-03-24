@@ -42,6 +42,12 @@ omit = [
     "tests/*",
 ]
 
+[tool.coverage.report]
+exclude_lines = [
+    "@abstractmethod",
+    "# pragma: no cover"
+]
+
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"

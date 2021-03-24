@@ -1,3 +1,5 @@
+def pop():
+    return 0
 import math
 
 
@@ -26,5 +28,3 @@ class FlatCircle:
 
 def uninteresting():
     return None
-def pop():
-    return 0

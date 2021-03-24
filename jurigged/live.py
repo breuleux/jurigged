@@ -12,7 +12,7 @@ from ovld import ovld
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
-from . import codefile
+from . import codetools
 from .register import registry
 from .utils import glob_filter
 
@@ -29,24 +29,19 @@ class WatchOperation:
 
 
 @ovld
-def default_logger(event: codefile.UpdateOperation):
-    print(T.bold_yellow(str(event)))
+def default_logger(event: codetools.UpdateOperation):
+    if isinstance(event.code, codetools.FunctionCode):
+        print(T.bold_yellow(str(event)))
 
 
 @ovld
-def default_logger(event: codefile.FailedUpdateOperation):
-    print(T.bold_red(str(event)))
-
-
-@ovld
-def default_logger(event: codefile.AddOperation):
+def default_logger(event: codetools.AddOperation):
     print(T.bold_green(str(event)))
 
 
 @ovld
-def default_logger(event: codefile.DeleteOperation):
-    if event.definition.type != "statement":
-        print(T.bold_red(str(event)))
+def default_logger(event: codetools.DeleteOperation):
+    print(T.bold_red(str(event)))
 
 
 @ovld

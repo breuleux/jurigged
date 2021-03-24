@@ -6,10 +6,34 @@ import pytest
 from jurigged.recode import OutOfSyncException, Recoder, make_recoder
 from jurigged.register import registry
 
-from .test_codefile import ballon, tmod  # noqa
+from .test_codetools import CodeCollection, ballon, tmod  # noqa
 
 
-def test_recoder(ballon):
+@pytest.fixture
+def hyperspace(tmod):
+    return CodeCollection(tmod, "hyperspace")
+
+
+def test_recoder(hyperspace):
+    rec = Recoder(name="test", codefile=hyperspace.main)
+    assert hyperspace.module.boost() == 2
+    rec.patch(
+        textwrap.dedent(
+            """
+            def boost():
+                return 200
+            """
+        )
+    )
+    assert hyperspace.module.boost() == 200
+    rec.commit()
+
+    after = open(hyperspace.main.filename).read()
+    expected = open(hyperspace.cf.recoded.filename).read()
+    assert after == expected
+
+
+def test_recoder_2(ballon):
     initial = open(ballon.main.filename).read()
 
     rec = Recoder(name="test", codefile=ballon.main)
@@ -88,17 +112,6 @@ def test_function_recoder(ballon):
             textwrap.dedent(
                 """
                 def infloote(x):
-                    return x * 10
-                """
-            )
-        )
-
-    with pytest.raises(ValueError):
-        rec.patch(
-            textwrap.dedent(
-                """
-                x = 10
-                def inflate(x):
                     return x * 10
                 """
             )

@@ -7,8 +7,8 @@ from types import CodeType, FunctionType, ModuleType
 from _frozen_importlib_external import SourceFileLoader
 from ovld import OvldMC, ovld
 
-from .codefile import CodeFile
-from .utils import EventSource, glob_filter
+from .codetools import CodeFile
+from .utils import EventSource, glob_filter, locate
 
 log = logging.getLogger(__name__)
 
@@ -72,8 +72,10 @@ class Registry(metaclass=OvldMC):
             module_name, cached_source, mtime = self.precache[filename]
             if module_name not in sys.modules:
                 return None
-            cf = CodeFile(filename, source=cached_source)
-            cf.discover(sys.modules[module_name])
+            cf = CodeFile(
+                filename, source=cached_source, module_name=module_name
+            )
+            cf.associate(sys.modules[module_name])
             cf.activity.register(self.log)
             # Basic forwarding of the CodeFile's events
             cf.activity.register(self.activity.emit)
@@ -86,7 +88,8 @@ class Registry(metaclass=OvldMC):
         cf = self.get(filename)
         if cf is None:
             return None, None
-        defn = cf.defnmap.get(lineno, None)
+        cat = cf.code.catalogue()
+        defn = cat.get((filename, lineno), None)
         return cf, defn
 
     def auto_register(self, filter=glob_filter("./*.py")):
@@ -130,7 +133,7 @@ class Registry(metaclass=OvldMC):
     def find(self, cls: type):
         _, filename = self.prepare(module_name=cls.__module__)
         cf = self.get(filename)
-        return cf, cf.locate(cls)
+        return cf, locate(cls, cf.code.catalogue())
 
 
 registry = Registry()

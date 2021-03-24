@@ -1,18 +1,17 @@
-import inspect
 import math
 import os
-import textwrap
 from types import SimpleNamespace as NS
 
 import pytest
 
-from jurigged.codefile import CodeFile, Definition, StaleException, conform
+from jurigged.codetools import CodeFile, StaleException
+from jurigged.utils import locate
 
-from .common import TemporaryModule, one_test_per_assert
+from .common import TemporaryModule
 from .snippets import apple
 
 
-class CodeFileCollection:
+class CodeCollection:
     def __init__(self, tmod, basename):
         self.tmod = tmod
         self.basename = basename
@@ -24,8 +23,8 @@ class CodeFileCollection:
             if name.startswith(basename)
         }
         module = tmod.imp(f"{basename}:main")
-        main_cf = CodeFile(module.__file__)
-        main_cf.discover(vars(module), module.__name__)
+        main_cf = CodeFile(module.__file__, module.__name__)
+        main_cf.associate(module)
 
         self.module = module
         self.main = main_cf
@@ -40,7 +39,10 @@ class CodeFileCollection:
         }
         self.files = NS(**files)
         self.cf = NS(
-            **{variant: CodeFile(file) for variant, file in files.items()}
+            **{
+                variant: CodeFile(file, self.module.__name__)
+                for variant, file in files.items()
+            }
         )
 
     def read(self, name="main"):
@@ -58,196 +60,86 @@ def tmod(scope="module"):
     return TemporaryModule()
 
 
-def getsource(fn):
-    return inspect.getsource(fn).rstrip()
-
-
-def chk(codefile, name, l0, ln, fn, parent=None, src=None, nlock=0):
-    funcs = codefile.defnmap
-    if parent is not None:
-        parent = funcs[parent[1]]
-    if src is None:
-        src = getsource(fn)
-    indent = len(src) - len(src.lstrip())
-    src = textwrap.dedent(src)
-    fu = funcs[l0]
-    return fu == Definition(
-        type="function",
-        name=name,
-        filename=fu.filename,
-        firstlineno=l0,
-        lastlineno=ln,
-        nlock=nlock,
-        parent=parent,
-        children=[],
-        indent=indent,
-        source=src,
-        saved=src,
-        live=src,
-        node=None,  # not compared for equality
-        object=fn,
-        variables=fu.variables,
-    )
-
-
 @pytest.fixture
-def apple_file(scope="module"):
-    cf = CodeFile(apple.__file__)
-    cf.discover(apple)
+def apple_code(scope="module"):
+    cf = CodeFile(apple.__file__, apple.__name__)
+    cf.associate(apple)
     return cf
 
 
 @pytest.fixture
 def ballon(tmod):
-    return CodeFileCollection(tmod, "ballon")
+    return CodeCollection(tmod, "ballon")
 
 
 @pytest.fixture
 def chips(tmod):
-    return CodeFileCollection(tmod, "chips")
+    return CodeCollection(tmod, "chips")
 
 
 @pytest.fixture
 def dandelion(tmod):
-    return CodeFileCollection(tmod, "dandelion")
+    return CodeCollection(tmod, "dandelion")
 
 
 @pytest.fixture
 def elephant(tmod):
-    return CodeFileCollection(tmod, "elephant")
+    return CodeCollection(tmod, "elephant")
 
 
 @pytest.fixture
 def firmament(tmod):
-    return CodeFileCollection(tmod, "firmament")
+    return CodeCollection(tmod, "firmament")
 
 
 @pytest.fixture
 def glamour(tmod):
-    return CodeFileCollection(tmod, "glamour")
+    return CodeCollection(tmod, "glamour")
 
 
-def f1(x):
-    return x * 2
+@pytest.fixture
+def iguana(tmod):
+    return CodeCollection(tmod, "iguana")
 
 
-def f2(x):
-    return x * 10
-
-
-def test_conform():
-    ff1 = f1
-    ff2 = f2
-
-    # Should make the behavior of the two functions equal
-    assert ff1(4) == 8
-    assert ff2(4) == 40
-    conform(f1, f2)
-    assert ff1(4) == 40
-    assert ff2(4) == 40
-    assert ff1.__code__ is ff2.__code__
-
-    # Should not crash on non-functions
-    conform(1, 2)
-
-
-@one_test_per_assert
-def test_codefile(apple_file):
-    assert chk(apple_file, "crunch", 1, 3, apple.crunch)
-    assert chk(apple_file, "breakfast", 6, 10, apple.breakfast, nlock=3)
-    assert chk(
-        apple_file,
-        "cortland",
-        23,
-        26,
-        apple.Orchard.cortland,
-        parent=("Orchard", 13),
-    )
-    assert chk(
-        apple_file,
-        "honeycrisp",
-        18,
-        21,
-        apple.Orchard.honeycrisp.__func__,
-        parent=("Orchard", 13),
-        nlock=1,
-    )
-    assert chk(
-        apple_file,
-        "mcintosh",
-        14,
-        16,
-        apple.Orchard.mcintosh,
-        parent=("Orchard", 13),
-        nlock=1,
-    )
-    assert chk(apple_file, "juggle", 29, 33, apple.juggle)
-    assert chk(apple_file, "pomme", 36, 39, apple.pomme)
-    assert chk(
-        apple_file, "pommier", 52, 54, apple.pommier.__wrapped__, nlock=1
-    )
-    assert chk(
-        apple_file,
-        "color",
-        58,
-        60,
-        apple.FakeApple.color.fget,
-        parent=("FakeApple", 57),
-        nlock=1,
-    )
-    assert chk(
-        apple_file,
-        "color",
-        62,
-        64,
-        apple.FakeApple.color.fset,
-        parent=("FakeApple", 57),
-        nlock=1,
-    )
-    # assert chk(
-    #     apple_file,
-    #     "ver",
-    #     37,
-    #     38,
-    #     None,
-    #     parent=("pomme", 36),
-    #     src='    def ver():\n        return "nyah ha ha ha"',
-    # )
-
-
-def test_match_definitions(ballon):
-    bmod = ballon.module
-    ba = ballon.main
-    bb = ballon.cf.v2
-
-    same, changes, adds, dels = ba.match_definitions(bb)
-
-    assert all(x.name == y.name for x, y in same)
-    assert all(x.name == y.name for x, y in changes)
-
-    same_info = {
-        (x.name, x.firstlineno, y.firstlineno, x.object) for x, y in same
+def test_collect(apple_code):
+    cat = {
+        k[1] if isinstance(k, tuple) else k: set(v.objects)
+        for k, v in apple_code.code.catalogue().items()
+        if set(v.objects)
     }
-    changes_info = {
-        (x.name, x.firstlineno, y.firstlineno, x.object) for x, y in changes
+    assert cat == {
+        1: {apple.crunch},
+        6: {apple.breakfast},
+        23: {apple.Orchard.cortland},
+        13: {apple.Orchard},
+        14: {apple.Orchard.mcintosh},
+        18: {apple.Orchard.honeycrisp.__func__},
+        29: {apple.juggle},
+        36: {apple.pomme},
+        45: {apple.arbre},
+        46: {apple.pommier},
+        52: {apple.pommier.__wrapped__},
+        57: {apple.FakeApple},
+        58: {apple.FakeApple.color.fget},
+        62: {apple.FakeApple.color.fset},
+        "tests.snippets.apple": {apple},
+        "tests.snippets.apple.crunch": {apple.crunch},
+        "tests.snippets.apple.breakfast": {apple.breakfast},
+        "tests.snippets.apple.Orchard.cortland": {apple.Orchard.cortland},
+        "tests.snippets.apple.Orchard": {apple.Orchard},
+        "tests.snippets.apple.Orchard.mcintosh": {apple.Orchard.mcintosh},
+        "tests.snippets.apple.Orchard.honeycrisp": {
+            apple.Orchard.honeycrisp.__func__
+        },
+        "tests.snippets.apple.juggle": {apple.juggle},
+        "tests.snippets.apple.pomme": {apple.pomme},
+        "tests.snippets.apple.arbre": {apple.arbre},
+        "tests.snippets.apple.arbre.branche": {apple.pommier},
+        "tests.snippets.apple.pommier": {apple.pommier.__wrapped__},
+        "tests.snippets.apple.FakeApple": {apple.FakeApple},
+        "tests.snippets.apple.FakeApple.color": {apple.FakeApple.color.fset},
     }
-    adds = {x.name for x in adds}
-    dels = {x.name for x in dels}
-
-    assert same_info == {
-        (None, 1, 1, None),
-        ("__init__", 9, 5, bmod.Sphere.__init__),
-        ("volume", 12, 8, bmod.Sphere.volume),
-        ("__init__", 17, 17, bmod.FlatCircle.__init__),
-        ("Sphere", 8, 4, bmod.Sphere),
-        ("FlatCircle", 16, 16, bmod.FlatCircle),
-    }
-    assert changes_info == {
-        ("inflate", 4, 12, bmod.inflate),
-        ("volume", 23, 23, bmod.FlatCircle.volume),
-    }
-    assert adds == {"circumference", "deflate"}
-    assert dels == {"uninteresting", "unsightly"}
 
 
 def test_merge(ballon):
@@ -288,7 +180,7 @@ def test_merge_partial(ballon):
 
     assert cir.volume() == -1
     assert cir.unsightly() == "yuck"
-    ballon.main.merge(ballon.cf.v2, deletable=False)
+    ballon.main.merge(ballon.cf.v2, allow_deletions=False)
     assert cir.volume() == 0
     assert cir.unsightly() == "yuck"
 
@@ -345,14 +237,20 @@ def test_merge_back_and_forth(ballon):
 
 def test_merge_decorators(chips):
     assert chips.module.munch(4) == 6
-    chips.main.merge(chips.cf.mod, deletable=False)
+    chips.main.merge(chips.cf.mod, allow_deletions=False)
     assert chips.module.munch(4, 2) == 8
 
 
-def test_merge_decorators_fail(chips):
+def test_merge_decorators_change(chips):
     assert chips.module.munch(4) == 6
-    chips.main.merge(chips.cf.bad, deletable=False)
+    chips.main.merge(chips.cf.bad, allow_deletions=False)
+    assert chips.module.munch(4) == 17
+
+
+def test_change_decorator(chips):
     assert chips.module.munch(4) == 6
+    chips.main.merge(chips.cf.newdeco, allow_deletions=False)
+    assert chips.module.munch(4) == 8
 
 
 def test_commit_noop(dandelion):
@@ -372,7 +270,7 @@ def test_commit(dandelion):
 
 def test_commit_partial(dandelion):
     orig = dandelion.read()
-    dandelion.main.merge(dandelion.cf.repl, deletable=False)
+    dandelion.main.merge(dandelion.cf.repl, allow_deletions=False)
     assert dandelion.read() == orig
     dandelion.main.commit()
     assert dandelion.read() == dandelion.read("outcome")
@@ -382,7 +280,9 @@ def test_commit_partial_2(dandelion):
     orig = dandelion.read()
     dandelion.main.merge(
         dandelion.cf.repl,
-        deletable=[dandelion.main.locate(dandelion.module.plack)],
+        allow_deletions=[
+            locate(dandelion.module.plack, dandelion.main.code.catalogue())
+        ],
     )
     assert dandelion.read() == orig
     dandelion.main.commit()
@@ -440,39 +340,38 @@ def test_update_statements(firmament):
 def test_regen_statements(firmament):
     firmament.main.merge(firmament.cf.mod)
     firmament.main.commit()
-    print(firmament.read().strip())
     assert firmament.read().strip() == firmament.read("result").strip()
 
 
 def test_change_supermethod(glamour):
     assert glamour.module.Scarf(5).swagger() == 10
-    glamour.main.merge(glamour.cf.mod)
+    glamour.main.merge(glamour.cf.mod, allow_deletions=False)
     assert glamour.module.Scarf(5).swagger() == 15
 
 
 def test_remove_super(glamour):
     assert glamour.module.Scarf(5).swagger() == 10
     glamour.main.merge(glamour.cf.mod2)
+    assert glamour.module.Scarf(5).swagger() == 1234
+
+
+def test_add_class_statement(glamour):
     assert glamour.module.Scarf(5).swagger() == 10
+    glamour.main.merge(glamour.cf.mod3)
+    assert glamour.module.Scarf(5).swagger() == 50
+    assert glamour.module.Scarf(5).also_swagger() == 50
+    assert glamour.module.Scarf(5).hello() == "hello!"
 
 
-def test_predecessor(ballon):
-    vol = ballon.main.locate(ballon.module.FlatCircle.volume)
-    uns = ballon.main.locate(ballon.module.FlatCircle.unsightly)
-    init = ballon.main.locate(ballon.module.FlatCircle.__init__)
-    assert vol.predecessor(vol.filename) is uns
-
-    ballon.main.merge(ballon.cf.v2)
-    assert vol.predecessor(vol.filename) is not uns
-    assert vol.predecessor(vol.filename) is init
+def test_bad_statement(iguana):
+    # This tests that one bad statement will not interfere with the rest of the
+    # changes.
+    assert iguana.module.lizard(3) == "sss"
+    iguana.main.merge(iguana.cf.bad)
+    assert iguana.module.lizard(3) == "ssssss"
 
 
-def test_successor(ballon):
-    vol = ballon.main.locate(ballon.module.FlatCircle.volume)
-    uns = ballon.main.locate(ballon.module.FlatCircle.unsightly)
-    init = ballon.main.locate(ballon.module.FlatCircle.__init__)
-    assert init.successor(vol.filename) is uns
-
-    ballon.main.merge(ballon.cf.v2)
-    assert init.successor(vol.filename) is not uns
-    assert init.successor(vol.filename) is vol
+def test_set_globals(ballon):
+    glb = {"a": 2}
+    ballon.main.code.set_globals(glb)
+    assert ballon.main.code.get_globals() is glb

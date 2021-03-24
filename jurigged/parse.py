@@ -33,9 +33,20 @@ def variables(self, seq: list, mapping):
 
 @ovld
 def variables(self, node: (ast.FunctionDef, ast.AsyncFunctionDef), mapping):
-    fvs = self(node.body, mapping)
+    fvs = (
+        self(node.body, mapping)
+        | self(node.args.args, mapping)
+        | self(node.args.posonlyargs, mapping)
+        | self(node.args.kwonlyargs, mapping)
+        | self(node.args.kwarg, mapping)
+        | self(node.args.vararg, mapping)
+    )
     mapping[node] = fvs
-    outer = self(node.decorator_list, mapping)
+    outer = (
+        self(node.decorator_list, mapping)
+        | self(node.args.defaults, mapping)
+        | self(node.args.kw_defaults, mapping)
+    )
     return outer | Variables(assigned={node.name}, read=fvs.free)
 
 
@@ -45,6 +56,11 @@ def variables(self, node: ast.ClassDef, mapping):
     mapping[node] = fvs
     outer = self(node.decorator_list, mapping)
     return outer | Variables(assigned={node.name}, read=fvs.free)
+
+
+@ovld
+def variables(self, node: ast.arg, mapping):
+    return Variables(assigned={node.arg})
 
 
 @ovld

@@ -1,7 +1,7 @@
 import builtins
 import time
 
-from jurigged import codefile
+from jurigged import codetools
 from jurigged.live import (
     WatchOperation,
     conservative_logger as conlog,
@@ -11,7 +11,7 @@ from jurigged.live import (
 from jurigged.register import Registry
 
 from .common import one_test_per_assert
-from .test_codefile import apple_file as apple, tmod  # noqa
+from .test_codetools import apple_code as apple, tmod  # noqa
 
 
 def _capture(obj, logger=default_logger):
@@ -25,31 +25,28 @@ def _capture(obj, logger=default_logger):
 
 def _std(cls, cf, lineno, logger=default_logger, **kw):
     return _capture(
-        cls(codefile=cf, definition=cf.defnmap[lineno], **kw), logger=logger
+        cls(codefile=cf, code=cf.code.catalogue()[cf.filename, lineno], **kw),
+        logger=logger,
     )
 
 
 @one_test_per_assert
 def test_logger(apple):
     assert (
-        _std(codefile.UpdateOperation, apple, 23)
+        _std(codetools.UpdateOperation, apple, 23)
         == "Update tests.snippets.apple.Orchard.cortland @L23"
     )
     assert (
-        _std(codefile.AddOperation, apple, 23)
+        _std(codetools.AddOperation, apple, 23)
         == "Add tests.snippets.apple.Orchard.cortland @L23"
     )
     assert (
-        _std(codefile.AddOperation, apple, 42)
+        _std(codetools.AddOperation, apple, 42)
         == "Run tests.snippets.apple @L42: from functools import wraps"
     )
     assert (
-        _std(codefile.DeleteOperation, apple, 23)
+        _std(codetools.DeleteOperation, apple, 23)
         == "Delete tests.snippets.apple.Orchard.cortland @L23"
-    )
-    assert (
-        _std(codefile.FailedUpdateOperation, apple, 23, reason="Woo!")
-        == "Failed update tests.snippets.apple.Orchard.cortland @L23: Woo!"
     )
     assert _capture(WatchOperation("some_file.py")) == "Watch some_file.py"
     assert "TypeError" in _capture(TypeError("hello"))
@@ -68,7 +65,7 @@ def test_conservative_logger(apple):
     assert _capture(SyntaxError("oh no"), logger=conlog) == _capture(
         SyntaxError("oh no")
     )
-    assert _std(codefile.DeleteOperation, apple, 23, logger=conlog) == ""
+    assert _std(codetools.DeleteOperation, apple, 23, logger=conlog) == ""
 
 
 def test_watch(tmod):
