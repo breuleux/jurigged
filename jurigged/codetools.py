@@ -6,6 +6,7 @@ from collections import Counter
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace as dc_replace
+from types import CodeType
 from typing import List, Optional
 
 from ovld import ovld
@@ -658,6 +659,42 @@ class ClassCode(GroupedCode):
 
 @dataclass
 class FunctionCode(GroupedCode):
+
+    ##############
+    # Management #
+    ##############
+
+    def stash(self, lineno=1, col_offset=0):
+        stashed = super().stash(lineno, col_offset)
+        for obj in self.objects:
+            # Update the firstlineno in the functions so that it matches
+            # the position in the written file (updates to the functions
+            # above them might have pushed them down)
+            co = obj.__code__
+            if co.co_firstlineno != lineno:
+                try:
+                    obj.__code__ = CodeType(
+                        co.co_argcount,
+                        co.co_posonlyargcount,
+                        co.co_kwonlyargcount,
+                        co.co_nlocals,
+                        co.co_stacksize,
+                        co.co_flags,
+                        co.co_code,
+                        co.co_consts,
+                        co.co_names,
+                        co.co_varnames,
+                        co.co_filename,
+                        co.co_name,
+                        lineno,
+                        co.co_lnotab,
+                        co.co_freevars,
+                        co.co_cellvars,
+                    )
+                except Exception:  # pragma: no cover
+                    # It's not a major issue if it fails
+                    pass
+        return stashed
 
     ##################
     # Correspondence #
