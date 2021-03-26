@@ -89,7 +89,7 @@ class Registry(metaclass=OvldMC):
         if cf is None:
             return None, None
         cat = cf.code.catalogue()
-        defn = cat.get((filename, lineno), None)
+        defn = cat.get(("FunctionCode", filename, lineno), None)
         return cf, defn
 
     def auto_register(self, filter=glob_filter("./*.py")):

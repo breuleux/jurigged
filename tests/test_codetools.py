@@ -104,25 +104,26 @@ def iguana(tmod):
 
 def test_collect(apple_code):
     cat = {
-        k[1] if isinstance(k, tuple) else k: set(v.objects)
+        f"{k[0]}@{k[2]}" if isinstance(k, tuple) else k: set(v.objects)
         for k, v in apple_code.code.catalogue().items()
         if set(v.objects)
     }
     assert cat == {
-        1: {apple.crunch},
-        6: {apple.breakfast},
-        23: {apple.Orchard.cortland},
-        13: {apple.Orchard},
-        14: {apple.Orchard.mcintosh},
-        18: {apple.Orchard.honeycrisp.__func__},
-        29: {apple.juggle},
-        36: {apple.pomme},
-        45: {apple.arbre},
-        46: {apple.pommier},
-        52: {apple.pommier.__wrapped__},
-        57: {apple.FakeApple},
-        58: {apple.FakeApple.color.fget},
-        62: {apple.FakeApple.color.fset},
+        "ModuleCode@1": {apple},
+        "FunctionCode@1": {apple.crunch},
+        "FunctionCode@6": {apple.breakfast},
+        "FunctionCode@23": {apple.Orchard.cortland},
+        "ClassCode@13": {apple.Orchard},
+        "FunctionCode@14": {apple.Orchard.mcintosh},
+        "FunctionCode@18": {apple.Orchard.honeycrisp.__func__},
+        "FunctionCode@29": {apple.juggle},
+        "FunctionCode@36": {apple.pomme},
+        "FunctionCode@45": {apple.arbre},
+        "FunctionCode@46": {apple.pommier},
+        "FunctionCode@52": {apple.pommier.__wrapped__},
+        "ClassCode@57": {apple.FakeApple},
+        "FunctionCode@58": {apple.FakeApple.color.fget},
+        "FunctionCode@62": {apple.FakeApple.color.fset},
         "tests.snippets.apple": {apple},
         "tests.snippets.apple.crunch": {apple.crunch},
         "tests.snippets.apple.breakfast": {apple.breakfast},

@@ -17,7 +17,7 @@ def locate(fn: types.FunctionType, catalog):
 
 @ovld
 def locate(code: types.CodeType, catalog):
-    key = (code.co_filename, code.co_firstlineno)
+    key = ("FunctionCode", code.co_filename, code.co_firstlineno)
     return catalog.get(key, None)
 
 

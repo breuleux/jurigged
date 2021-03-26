@@ -226,9 +226,9 @@ class Code:
     def catalogue(self, cat=None):
         cat = {} if cat is None else cat
         if self.node is not None:
-            ext = self.node.extent
-            if ext is not None:
-                cat[(ext.filename, ext.lineno)] = self
+            for ext in [self.node.extent, self.stashed]:
+                if ext is not None:
+                    cat[(type(self).__name__, ext.filename, ext.lineno)] = self
         return cat
 
     ##############

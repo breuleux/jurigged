@@ -23,9 +23,13 @@ def _capture(obj, logger=default_logger):
     return "\n".join(value)
 
 
-def _std(cls, cf, lineno, logger=default_logger, **kw):
+def _std(cls, cf, lineno, logger=default_logger, codetype="FunctionCode", **kw):
     return _capture(
-        cls(codefile=cf, code=cf.code.catalogue()[cf.filename, lineno], **kw),
+        cls(
+            codefile=cf,
+            code=cf.code.catalogue()[codetype, cf.filename, lineno],
+            **kw
+        ),
         logger=logger,
     )
 
@@ -41,7 +45,7 @@ def test_logger(apple):
         == "Add tests.snippets.apple.Orchard.cortland @L23"
     )
     assert (
-        _std(codetools.AddOperation, apple, 42)
+        _std(codetools.AddOperation, apple, 42, codetype="CodeChunk")
         == "Run tests.snippets.apple @L42: from functools import wraps"
     )
     assert (
