@@ -2,9 +2,6 @@ import linecache
 import textwrap
 from contextlib import contextmanager
 from itertools import count
-from types import CodeType, FunctionType, ModuleType
-
-from ovld import ovld
 
 from .codetools import (
     CodeChunk,
@@ -128,16 +125,7 @@ class Recoder:
         self.codefile.refresh()
 
 
-@ovld
-def make_recoder(module: ModuleType, deletable=False):
-    cf, _ = registry.find(module)
-    return cf and Recoder(
-        name=module.__name__, codefile=cf, deletable=deletable
-    )
-
-
-@ovld
-def make_recoder(obj: (CodeType, FunctionType, type), deletable=False):
+def make_recoder(obj, deletable=False):
     cf, defn = registry.find(obj)
     return (
         cf

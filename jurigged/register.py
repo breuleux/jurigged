@@ -116,7 +116,8 @@ class Registry(metaclass=OvldMC):
     @ovld
     def find(self, module: ModuleType):
         self.prepare(module.__name__, module.__file__)
-        return self.get(module.__file__), None
+        cf = self.get(module.__file__)
+        return cf, cf.code
 
     @ovld
     def find(self, fn: FunctionType):
