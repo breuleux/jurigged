@@ -3,11 +3,13 @@
 
 Jurigged lets you update your code while it runs. Using it is trivial:
 
-1. `python -m jurigged your_script.py`
+1. `jurigged your_script.py`
 2. Change some function or method with your favorite editor and save the file
 3. Jurigged will hot patch the new function into the running script
 
 Jurigged updates live code smartly: changing a function or method will fudge code pointers so that all existing instances are simultaneously modified to implement the new behavior. When modifying a module, only changed lines will be re-run.
+
+![demo](https://user-images.githubusercontent.com/599820/113785377-ffab1e80-9704-11eb-9c82-6d866c9087a6.gif)
 
 
 ## Install
@@ -33,6 +35,10 @@ With no arguments given, it will start a live REPL:
 
 ```bash
 python -m jurigged
+
+OR
+
+jurigged
 ```
 
 Full help:
@@ -133,7 +139,7 @@ Jurigged works in a surprisingly large number of situations, but there are sever
 * **Updating the code of a decorator or a closure may or may not work.** Jurigged will do its best, but it is possible that some closures will be updated but not others.
 * **Decorators that look at/tweak function code will probably not update properly.**
   * Wrappers that try to compile/JIT Python code won't know about jurigged and won't be able to redo their work for the new code.
-  * They can be made to work if they set the (jurigged-specific) `__conform__` attribute on the old function. `__conform__` takes a reference to the function that should replace it.
+  * They can be made to work if they set the (jurigged-specific) `__conform__` attribute on the old function. `__conform__` takes a reference to the function that should replace it, or `None` if it is to be deleted.
 
 
 ## How it works
