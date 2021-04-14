@@ -254,6 +254,28 @@ def test_change_decorator(chips):
     assert chips.module.munch(4) == 8
 
 
+def test_change_decorator_multiple(chips):
+    assert chips.module.munch(4) == 6
+    chips.main.merge(chips.cf.newdeco, allow_deletions=False)
+    assert chips.module.munch(4) == 8
+    chips.main.merge(chips.cf.newdeco2, allow_deletions=False)
+    assert chips.module.munch(4) == 10
+
+
+def test_change_decorator_then_fn(chips):
+    assert chips.module.munch(4) == 6
+    chips.main.merge(chips.cf.newdeco, allow_deletions=False)
+    chips.main.merge(chips.cf.newfn, allow_deletions=False)
+    assert chips.module.munch(4) == 404
+
+
+def test_change_fn_then_decorator(chips):
+    assert chips.module.munch(4) == 6
+    chips.main.merge(chips.cf.newfn, allow_deletions=False)
+    chips.main.merge(chips.cf.newdeco, allow_deletions=False)
+    assert chips.module.munch(4) == 404
+
+
 def test_commit_noop(dandelion):
     orig = dandelion.read()
     dandelion.main.commit()

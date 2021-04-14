@@ -713,6 +713,10 @@ class FunctionCode(GroupedCode):
             ):
                 try:
                     ccorr.original.reevaluate(ccorr.new.node, glb, None)
+                    # Note that we will throw out the original ccorr and
+                    # replace it by the new, so if the reevaluation succeeds
+                    # it is important to sync their objects.
+                    ccorr.new.objects = ccorr.original.objects
                     controller("post-update", ccorr)
                 except ConformException:
                     # Only re-raise for the top level FunctionCode so that
