@@ -4,6 +4,7 @@ import logging
 import os
 import runpy
 import sys
+import threading
 import traceback
 from dataclasses import dataclass
 
@@ -19,6 +20,7 @@ from .version import version
 
 log = logging.getLogger(__name__)
 T = blessed.Terminal()
+DEFAULT_DEBOUNCE = 0.05
 
 
 @dataclass
@@ -75,10 +77,11 @@ def conservative_logger(event):
 
 
 class Watcher:
-    def __init__(self, registry):
+    def __init__(self, registry, debounce=DEFAULT_DEBOUNCE):
         self.observer = Observer()
         self.registry = registry
         self.registry.precache_activity.register(self.on_prepare)
+        self.debounce = debounce
 
     def on_prepare(self, module_name, filename):
         JuriggedHandler(self, filename).schedule(self.observer)
@@ -106,27 +109,44 @@ class JuriggedHandler(FileSystemEventHandler):
         self.watcher = watcher
         self.filename = filename
         self.mtime = 0
+        self.timer = None
+
+    def _refresh(self):
+        self.watcher.refresh(self.filename)
+        self.timer = None
 
     def on_modified(self, event):
         mtime = os.path.getmtime(event.src_path)
         # The modified event sometimes fires twice for no reason
         # even though the mtime is the same
         if mtime != self.mtime:
-            self.watcher.refresh(event.src_path)
             self.mtime = mtime
+            if self.watcher.debounce:
+                if self.timer is not None:
+                    self.timer.cancel()
+                self.timer = threading.Timer(
+                    self.watcher.debounce, self._refresh
+                )
+                self.timer.start()
+            else:
+                self._refresh()
 
     def schedule(self, observer):
         observer.schedule(self, self.filename)
 
 
 def watch(
-    pattern="./*.py", logger=default_logger, registry=registry, autostart=True
+    pattern="./*.py",
+    logger=default_logger,
+    registry=registry,
+    autostart=True,
+    debounce=DEFAULT_DEBOUNCE,
 ):
     registry.auto_register(
         filter=glob_filter(pattern) if isinstance(pattern, str) else pattern
     )
     registry.set_logger(logger)
-    watcher = Watcher(registry)
+    watcher = Watcher(registry, debounce=debounce)
     if autostart:
         watcher.start()
     return watcher
@@ -157,6 +177,13 @@ def cli():  # pragma: no cover
         help="Wildcard path/directory for which files to watch",
     )
     parser.add_argument(
+        "--debounce",
+        "-d",
+        type=int,
+        dest="debounce",
+        help="Interval to wait for to refresh a modified file",
+    )
+    parser.add_argument(
         "-m",
         dest="module",
         metavar="MODULE",
@@ -171,6 +198,7 @@ def cli():  # pragma: no cover
     watch_args = {
         "pattern": pattern,
         "logger": default_logger if opts.verbose else conservative_logger,
+        "debounce": opts.debounce or DEFAULT_DEBOUNCE,
     }
 
     if opts.version:

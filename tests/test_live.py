@@ -75,7 +75,7 @@ def test_conservative_logger(apple):
 def test_watch(tmod):
     mangle = "_5"
     registry = Registry()
-    watcher = watch(pattern=tmod.rel("*.py"), registry=registry)
+    watcher = watch(pattern=tmod.rel("*.py"), registry=registry, debounce=0)
     za = tmod.imp("za", mangle=mangle)
     assert za.word == "tyrant"
 
@@ -98,3 +98,28 @@ def test_watch(tmod):
 
     watcher.join()
     assert not watcher.observer.is_alive()
+
+
+def test_debounce(tmod):
+    def lg(evt):
+        evts.append(type(evt).__name__)
+
+    evts = []
+    mangle = "_6"
+    registry = Registry()
+    watcher = watch(pattern=tmod.rel("*.py"), registry=registry, debounce=0.1)
+    registry.activity.register(lg)
+
+    za = tmod.imp("za", mangle=mangle)
+    assert za.word == "tyrant"
+
+    tmod.write("za_6.py", "")
+    time.sleep(0.05)
+    tmod.write("za_6.py", 'word = "tyrant"\nxxx = "xxx"')
+    time.sleep(0.20)
+    assert za.word == "tyrant"
+    assert za.xxx == "xxx"
+
+    assert evts.count("DeleteOperation") == 0
+    assert evts.count("AddOperation") == 1
+    assert evts.count("UpdateOperation") == 1
