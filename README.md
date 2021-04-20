@@ -57,6 +57,8 @@ optional arguments:
   --verbose, -v         Show watched files and changes as they happen
   --watch PATH, -w PATH
                         Wildcard path/directory for which files to watch
+  --debounce DEBOUNCE, -d DEBOUNCE
+                        Interval to wait for to refresh a modified file, in seconds
   -m MODULE             Module or module:function to run
 ```
 
