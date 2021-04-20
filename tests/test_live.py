@@ -107,7 +107,7 @@ def test_debounce(tmod):
     evts = []
     mangle = "_6"
     registry = Registry()
-    watcher = watch(pattern=tmod.rel("*.py"), registry=registry, debounce=0.1)
+    watch(pattern=tmod.rel("*.py"), registry=registry, debounce=0.1)
     registry.activity.register(lg)
 
     za = tmod.imp("za", mangle=mangle)
