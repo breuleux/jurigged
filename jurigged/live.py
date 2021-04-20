@@ -179,9 +179,9 @@ def cli():  # pragma: no cover
     parser.add_argument(
         "--debounce",
         "-d",
-        type=int,
+        type=float,
         dest="debounce",
-        help="Interval to wait for to refresh a modified file",
+        help="Interval to wait for to refresh a modified file, in seconds",
     )
     parser.add_argument(
         "-m",
