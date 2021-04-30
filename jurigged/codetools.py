@@ -1,4 +1,5 @@
 import ast
+import gc
 import os
 import re
 from abc import abstractmethod
@@ -6,11 +7,12 @@ from collections import Counter
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace as dc_replace
-from types import CodeType
+from types import CodeType, FunctionType
 from typing import List, Optional
 
 from ovld import ovld
 
+from .codedb import db
 from .parse import Variables, variables
 from .utils import ConformException, EventSource, IDSet, conform, dig, locate
 
@@ -171,6 +173,10 @@ class Code:
         chain = list(self.hierarchy())
         return ".".join(x.name or "<line>" for x in reversed(chain))
 
+    def codepath(self, skip=0):
+        chain = list(self.hierarchy(skip=skip))
+        return tuple((x.filename if i == 0 else x.name) or "<line>" for i, x in enumerate(reversed(chain)))
+
     def module_name(self):
         return self.parent and self.parent.module_name()
 
@@ -239,7 +245,9 @@ class Code:
         if self.node is not None:
             node = ast.Module(body=[self.node], type_ignores=[])
             code = compile(node, mode="exec", filename=self.filename)
+            code = code.replace(co_name="<adjust>")
             exec(code, glb, lcl)
+            db.assimilate(code.replace(co_name=""), path=self.codepath(skip=1))
 
     #############
     # Utilities #
@@ -468,8 +476,12 @@ class GroupedCode(Code):
             elif new is None:
                 if controller("pre-delete", ccorr):
                     # Deletion
-                    for obj in orig.objects:
-                        conform(obj, None)
+                    if hasattr(orig, "objects2"):
+                        for obj in orig.objects2():
+                            conform(obj, None)
+                    else:
+                        for obj in orig.objects:
+                            conform(obj, None)
                     controller("post-delete", ccorr)
                 else:
                     self.append(orig, ensure_separation=True)
@@ -673,24 +685,8 @@ class FunctionCode(GroupedCode):
             co = obj.__code__
             if co.co_firstlineno != lineno:
                 try:
-                    obj.__code__ = CodeType(
-                        co.co_argcount,
-                        co.co_posonlyargcount,
-                        co.co_kwonlyargcount,
-                        co.co_nlocals,
-                        co.co_stacksize,
-                        co.co_flags,
-                        co.co_code,
-                        co.co_consts,
-                        co.co_names,
-                        co.co_varnames,
-                        co.co_filename,
-                        co.co_name,
-                        lineno,
-                        co.co_lnotab,
-                        co.co_freevars,
-                        co.co_cellvars,
-                    )
+                    obj.__code__ = co.replace(co_firstlineno=lineno)
+                    self._codeobj = obj.__code__
                 except Exception:  # pragma: no cover
                     # It's not a major issue if it fails
                     pass
@@ -716,6 +712,7 @@ class FunctionCode(GroupedCode):
                     # Note that we will throw out the original ccorr and
                     # replace it by the new, so if the reevaluation succeeds
                     # it is important to sync their objects.
+                    ccorr.new._codeobj = ccorr.original._codeobj
                     ccorr.new.objects = ccorr.original.objects
                     controller("post-update", ccorr)
                 except ConformException:
@@ -730,6 +727,24 @@ class FunctionCode(GroupedCode):
     ##############
     # Evaluation #
     ##############
+
+    def objects2(self):
+        try:
+            code = getattr(self, "_codeobj", None)
+            if code is None:
+                pth = self.codepath()
+                if pth in db.codes:
+                    self._codeobj = code = db.codes[pth]
+
+            rval = set()
+            if code is not None:
+                for fn in gc.get_referrers(code):
+                    if isinstance(fn, FunctionType):
+                        rval.add(fn)
+            return rval
+
+        except Exception as exc:
+            return set()
 
     def reevaluate(self, new_node, glb, lcl):
         if not self.objects:  # pragma: no cover
@@ -785,6 +800,7 @@ class FunctionCode(GroupedCode):
         else:
             node = ast.Module(body=[new_node], type_ignores=[])
         code = compile(node, mode="exec", filename=ext.filename)
+        code = code.replace(co_name="<adjust>")
         exec(code, glb, lcl)
         if closure:
             creator = lcl["##create_closure"]
@@ -794,8 +810,11 @@ class FunctionCode(GroupedCode):
         else:
             new_obj = lcl[self.name]
         lcl[self.name] = previous
-        for obj in self.objects:
-            conform(obj, new_obj)
+        for obj in self.objects2():
+            if new_obj is not obj:
+                conform(obj, new_obj)
+        # db.codes[self.codepath()] = new_obj.__code__
+        self._codeobj = new_obj.__code__
         node.extent = ext
         self.node = node
 
