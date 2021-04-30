@@ -6,13 +6,14 @@ from collections import Counter
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace as dc_replace
-from types import CodeType
+from types import CodeType, ModuleType
 from typing import List, Optional
 
 from ovld import ovld
 
+from .codedb import ConformException, conform, db
 from .parse import Variables, variables
-from .utils import ConformException, EventSource, IDSet, conform, dig, locate
+from .utils import EventSource, shift_lineno
 
 current_info = ContextVar("current_info", default=None)
 
@@ -88,8 +89,8 @@ def get_info():
 
 @dataclass
 class Correspondence:
-    original: "Code"
-    new: "Code"
+    original: "Definition"
+    new: "Definition"
     corresponds: bool
     changed: bool = False
     child_correspondences: Optional[List["Correspondence"]] = None
@@ -140,12 +141,16 @@ class Correspondence:
 
 
 @dataclass
-class Code:
+class Definition:
     node: ast.AST
     name: str = None
     filename: str = None
-    parent: Optional["Code"] = None
-    objects: IDSet = field(default_factory=IDSet)
+    parent: Optional["Definition"] = None
+
+    # This is the original line number, used in the first lookup of the
+    # code object. It does not need to remain in sync with updates to the
+    # source code.
+    groundline: int = -1
 
     def __post_init__(self):
         self._code = None
@@ -171,11 +176,21 @@ class Code:
         chain = list(self.hierarchy())
         return ".".join(x.name or "<line>" for x in reversed(chain))
 
-    def module_name(self):
-        return self.parent and self.parent.module_name()
+    def codepath(self, skip=0):
+        chain = list(self.hierarchy(skip=skip))
+        return tuple(
+            (x.filename if i == 0 else x.name) or "<line>"
+            for i, x in enumerate(reversed(chain))
+        )
 
     def get_globals(self):
         return self.parent and self.parent.get_globals()
+
+    def get_object(self):
+        return None
+
+    def walk(self):
+        yield self
 
     ##############
     # Management #
@@ -219,18 +234,6 @@ class Code:
     def apply_correspondence(self, corr, order, controller):
         pass
 
-    ###############
-    # Cataloguing #
-    ###############
-
-    def catalogue(self, cat=None):
-        cat = {} if cat is None else cat
-        if self.node is not None:
-            for ext in [self.node.extent, self.stashed]:
-                if ext is not None:
-                    cat[(type(self).__name__, ext.filename, ext.lineno)] = self
-        return cat
-
     ##############
     # Evaluation #
     ##############
@@ -239,7 +242,9 @@ class Code:
         if self.node is not None:
             node = ast.Module(body=[self.node], type_ignores=[])
             code = compile(node, mode="exec", filename=self.filename)
+            code = code.replace(co_name="<adjust>")
             exec(code, glb, lcl)
+            db.assimilate(code.replace(co_name=""), path=self.codepath(skip=1))
 
     #############
     # Utilities #
@@ -252,7 +257,7 @@ class Code:
 
 
 @dataclass
-class CodeChunk(Code):
+class LineDefinition(Definition):
     text: str = ""
 
     ##############
@@ -300,7 +305,7 @@ class CodeChunk(Code):
 
 
 @dataclass
-class CodeHeader(CodeChunk):
+class HeaderDefinition(LineDefinition):
 
     ##################
     # Correspondence #
@@ -311,9 +316,9 @@ class CodeHeader(CodeChunk):
 
 
 @dataclass
-class GroupedCode(Code):
+class GroupDefinition(Definition):
     variables: Variables = None
-    children: List[Code] = field(default=list)
+    children: List[Definition] = field(default=list)
 
     def __post_init__(self):
         super().__post_init__()
@@ -340,9 +345,14 @@ class GroupedCode(Code):
             [
                 child.codestring
                 for child in self.children
-                if isinstance(child, CodeHeader)
+                if isinstance(child, HeaderDefinition)
             ]
         )
+
+    def walk(self):
+        yield self
+        for child in self.children:
+            yield from child.walk()
 
     ##############
     # Management #
@@ -373,7 +383,7 @@ class GroupedCode(Code):
         else:  # pragma: no cover
             # This doesn't seem to ever happen
             self.prepend(
-                CodeChunk(node=None, text=text, filename=self.filename)
+                LineDefinition(node=None, text=text, filename=self.filename)
             )
 
     def append_text(self, text):  # pragma: no cover
@@ -381,7 +391,9 @@ class GroupedCode(Code):
         if self.children:
             self.children[-1].append_text(text)
         else:
-            self.append(CodeChunk(node=None, text=text, filename=self.filename))
+            self.append(
+                LineDefinition(node=None, text=text, filename=self.filename)
+            )
 
     def append(self, *children, ensure_separation=False):
         for child in children:
@@ -390,7 +402,9 @@ class GroupedCode(Code):
                 and self.children
                 and not self.children[-1].well_separated(child)
             ):
-                ws = CodeChunk(node=None, text="\n", filename=self.filename)
+                ws = LineDefinition(
+                    node=None, text="\n", filename=self.filename
+                )
                 self.children.append(ws)
                 ws.set_parent(self)
             self.children.append(child)
@@ -437,8 +451,8 @@ class GroupedCode(Code):
 
             mergeable = not any(
                 (
-                    isinstance(corr.original, CodeHeader)
-                    or isinstance(corr.new, CodeHeader)
+                    isinstance(corr.original, HeaderDefinition)
+                    or isinstance(corr.new, HeaderDefinition)
                 )
                 and corr.changed
                 for corr in childcorr
@@ -468,8 +482,7 @@ class GroupedCode(Code):
             elif new is None:
                 if controller("pre-delete", ccorr):
                     # Deletion
-                    for obj in orig.objects:
-                        conform(obj, None)
+                    conform(orig.get_object(), None)
                     controller("post-delete", ccorr)
                 else:
                     self.append(orig, ensure_separation=True)
@@ -566,37 +579,14 @@ class GroupedCode(Code):
 
             controller("post-update", corr)
 
-    ###############
-    # Cataloguing #
-    ###############
-
-    def catalogue(self, cat=None):
-        if cat is None:
-            cat = {}
-        for child in self.children:
-            child.catalogue(cat)
-        super().catalogue(cat)
-        if (pth := self.dotpath()) is not None:
-            cat[pth] = self
-        return cat
-
     ##############
     # Evaluation #
     ##############
-
-    def associate(self, obj, module_name):
-        cat = self.catalogue()
-        for entry in dig(obj, module_name):
-            defn = locate(entry, cat)
-            if defn is not None:
-                defn.objects.add(entry)
 
     def evaluate(self, glb, lcl):
         super().evaluate(glb, lcl)
         obj = (lcl or glb).get(self.name, None)
         obj.__qualname__ = ".".join(self.dotpath().split(".")[1:])
-        mname = self.module_name()
-        self.associate(obj, mname)
 
     @abstractmethod
     def evaluate_child(self, child):
@@ -608,7 +598,10 @@ class GroupedCode(Code):
 
 
 @dataclass
-class ModuleCode(GroupedCode):
+class ModuleCode(GroupDefinition):
+    module: object = None
+    globals: object = None
+
     def __post_init__(self):
         super().__post_init__()
         self.ignore_names = True
@@ -617,17 +610,11 @@ class ModuleCode(GroupedCode):
     # Hierarchy #
     #############
 
-    def module_name(self):
-        return self.name
-
-    def set_globals(self, glb):
-        self.objects = [glb]
-
     def get_globals(self):
-        (mod,) = self.objects
-        if not isinstance(mod, dict):
-            mod = vars(mod)
-        return mod
+        return self.globals
+
+    def get_object(self):
+        return self.globals
 
     ##############
     # Evaluation #
@@ -637,104 +624,116 @@ class ModuleCode(GroupedCode):
         return child.evaluate(self.get_globals(), None)
 
     def delete_property(self, prop):
-        (mod,) = self.objects
-        delattr(mod, prop)
+        del self.globals[prop]
 
 
 @dataclass
-class ClassCode(GroupedCode):
+class ClassDefinition(GroupDefinition):
 
     ##############
     # Evaluation #
     ##############
 
+    def get_object(self):
+        parent = self.parent.get_object()
+        if isinstance(parent, dict):
+            return parent.get(self.name, None)
+        else:
+            return getattr(parent, self.name, None)
+
     def evaluate_child(self, child):
-        for obj in self.objects:
+        if (obj := self.get_object()) is not None:
             return child.evaluate(self.get_globals(), attrproxy(obj))
 
     def delete_property(self, prop):
-        for obj in self.objects:
+        if (obj := self.get_object()) is not None:
             delattr(obj, prop)
 
 
 @dataclass
-class FunctionCode(GroupedCode):
+class FunctionDefinition(GroupDefinition):
+
+    _codeobj: object = None
 
     ##############
     # Management #
     ##############
 
     def stash(self, lineno=1, col_offset=0):
-        stashed = super().stash(lineno, col_offset)
-        for obj in self.objects:
-            # Update the firstlineno in the functions so that it matches
-            # the position in the written file (updates to the functions
-            # above them might have pushed them down)
-            co = obj.__code__
-            if co.co_firstlineno != lineno:
-                try:
-                    obj.__code__ = CodeType(
-                        co.co_argcount,
-                        co.co_posonlyargcount,
-                        co.co_kwonlyargcount,
-                        co.co_nlocals,
-                        co.co_stacksize,
-                        co.co_flags,
-                        co.co_code,
-                        co.co_consts,
-                        co.co_names,
-                        co.co_varnames,
-                        co.co_filename,
-                        co.co_name,
-                        lineno,
-                        co.co_lnotab,
-                        co.co_freevars,
-                        co.co_cellvars,
-                    )
-                except Exception:  # pragma: no cover
-                    # It's not a major issue if it fails
-                    pass
-        return stashed
+        if not isinstance(self.parent, FunctionDefinition):
+            co = self.get_object()
+            if co and (delta := lineno - co.co_firstlineno):
+                self.recode(shift_lineno(co, delta), use_cache=True)
+
+        return super().stash(lineno, col_offset)
 
     ##################
     # Correspondence #
     ##################
 
+    def recode(self, new_code, recode_current=True, use_cache=False):
+        # Gather the code objects of all closures into subcodes
+        subcodes = {}
+
+        def _fill_subcodes(code, path):
+            subcodes[path] = code
+            for co in code.co_consts:
+                if isinstance(co, CodeType):
+                    _fill_subcodes(co, (*path, co.co_name))
+
+        here = self.codepath()
+        _fill_subcodes(new_code, here)
+        if not recode_current:
+            del subcodes[here]
+
+        # Synchronize changes in closure codes
+        for closure in self.walk():
+            if isinstance(closure, FunctionDefinition) and (
+                subcode := subcodes.get(closure.codepath(), None)
+            ):
+                co = closure.get_object()
+                if co is not subcode:
+                    conform(co, subcode, use_cache=use_cache)
+                    closure._codeobj = subcode
+
     def apply_correspondence(self, corr, order, controller):
         assert corr.corresponds and corr.changed
 
-        glb = self.get_globals()
-        for ccorr in corr.walk():
-            if (
-                isinstance(ccorr.original, FunctionCode)
-                and ccorr.new is not None
-                and ccorr.changed
-                and controller("pre-update", ccorr)
-            ):
-                try:
-                    ccorr.original.reevaluate(ccorr.new.node, glb, None)
-                    # Note that we will throw out the original ccorr and
-                    # replace it by the new, so if the reevaluation succeeds
-                    # it is important to sync their objects.
-                    ccorr.new.objects = ccorr.original.objects
-                    controller("post-update", ccorr)
-                except ConformException:
-                    # Only re-raise for the top level FunctionCode so that
-                    # its parent tries to run it anew
-                    if ccorr is corr:
-                        raise
+        if controller("pre-update", corr):
+            # Reevaluate this function
+            glb = self.get_globals()
+            new_obj = self.reevaluate(corr.new.node, glb)
+            new_code = new_obj.__code__
 
-        self.children = []
-        self.append(*corr.new.children)
+            self.recode(new_code, recode_current=False)
+
+            # We will throw out all original child correspondences and replace
+            # them by the new, so if the reevaluation succeeds it is important
+            # to sync their code objects.
+            for ccorr in corr.walk():
+                if (
+                    isinstance(ccorr.original, FunctionDefinition)
+                    and ccorr.new is not None
+                ):
+                    ccorr.new._codeobj = ccorr.original._codeobj
+
+            self.children = []
+            self.append(*corr.new.children)
+            self._codeobj = new_code
+            controller("post-update", corr)
 
     ##############
     # Evaluation #
     ##############
 
-    def reevaluate(self, new_node, glb, lcl):
-        if not self.objects:  # pragma: no cover
-            return
+    def get_object(self):
+        if self._codeobj is None:
+            pth = (*self.codepath(), self.groundline)
+            if pth in db.codes:
+                self._codeobj = db.codes[pth]
+        return self._codeobj
 
+    def reevaluate(self, new_node, glb):
         ext = new_node.extent
         closure = False
         lcl = {}
@@ -752,6 +751,9 @@ class FunctionCode(GroupedCode):
         )
         previous = lcl.get(self.name, None)
         if self.variables.closure:
+            # Because reevaluate is typically not run on closures, this code
+            # path is essentially only entered for functions that use super(),
+            # since they are implicit closures on __class__
             closure = True
             names = tuple(sorted(self.variables.closure))
             wrap = ast.copy_location(
@@ -785,6 +787,7 @@ class FunctionCode(GroupedCode):
         else:
             node = ast.Module(body=[new_node], type_ignores=[])
         code = compile(node, mode="exec", filename=ext.filename)
+        code = code.replace(co_name="<adjust>")
         exec(code, glb, lcl)
         if closure:
             creator = lcl["##create_closure"]
@@ -794,10 +797,11 @@ class FunctionCode(GroupedCode):
         else:
             new_obj = lcl[self.name]
         lcl[self.name] = previous
-        for obj in self.objects:
-            conform(obj, new_obj)
         node.extent = ext
         self.node = node
+        conform(self.get_object(), new_obj)
+        self._codeobj = new_obj.__code__
+        return new_obj
 
 
 @dataclass
@@ -898,7 +902,7 @@ def delta(node1, node2):
     )
 
 
-def distribute(between, defn1, defn2, cls=CodeChunk):
+def distribute(between, defn1, defn2, cls=LineDefinition):
     left, middle, right = analyze_split(between)
     rval = ""
     if left:
@@ -934,7 +938,7 @@ def collect_definitions(self, nodes: list):
 def collect_definitions(self, node: (ast.FunctionDef, ast.AsyncFunctionDef)):
     info = get_info()
     defns = self(node.body)
-    cg = FunctionCode(
+    fndefn = FunctionDefinition(
         name=node.name,
         node=node,
         children=defns,
@@ -945,26 +949,28 @@ def collect_definitions(self, node: (ast.FunctionDef, ast.AsyncFunctionDef)):
 
     deco0 = _collapse_to_beginning(node.extent)
     between = delta(deco0, node)
-    prelude += distribute(between, None, None, cls=CodeHeader)
+    prelude += distribute(between, None, None, cls=HeaderDefinition)
 
     fnstart = _collapse_to_beginning(node)
     between = delta(fnstart, node.body[0].extent)
     prelude += distribute(between, None, defns[0])
 
-    cg.prepend(*prelude)
+    fndefn.prepend(*prelude)
 
     fnend = _collapse_to_end(node)
     between = delta(node.body[-1].extent, fnend)
-    cg.append(*distribute(between, defns[-1], None))
+    fndefn.append(*distribute(between, defns[-1], None))
 
-    return cg
+    fndefn.groundline = deco0.lineno
+
+    return fndefn
 
 
 @ovld
 def collect_definitions(self, node: ast.ClassDef):
     info = get_info()
     defns = self(node.body)
-    cg = ClassCode(
+    clsdefn = ClassDefinition(
         name=node.name,
         node=node,
         children=defns,
@@ -975,15 +981,15 @@ def collect_definitions(self, node: ast.ClassDef):
 
     deco0 = _collapse_to_beginning(node.extent)
     between = delta(deco0, node.body[0].extent)
-    prelude += distribute(between, None, defns[0], cls=CodeHeader)
+    prelude += distribute(between, None, defns[0], cls=HeaderDefinition)
 
-    cg.prepend(*prelude)
+    clsdefn.prepend(*prelude)
 
     fnend = _collapse_to_end(node)
     between = delta(node.body[-1].extent, fnend)
-    cg.append(*distribute(between, defns[-1], None))
+    clsdefn.append(*distribute(between, defns[-1], None))
 
-    return cg
+    return clsdefn
 
 
 @ovld
@@ -1011,7 +1017,7 @@ def collect_definitions(self, node: ast.Module):
 
 @ovld
 def collect_definitions(self, node: ast.stmt):
-    return CodeChunk(node=node, text=get_info().get_segment(node))
+    return LineDefinition(node=node, text=get_info().get_segment(node))
 
 
 class CodeFile:
@@ -1035,17 +1041,23 @@ class CodeFile:
             varinfo=varinfo,
         ):
             fill_real_extent(tree)
-            self.code = collect_definitions(tree)
-        self.code.stash()
+            self.root = collect_definitions(tree)
+        self.root.stash()
         self.dirty = False
 
     @property
     def module(self):
-        (mod,) = self.code.objects
-        return mod
+        return self.root.module
 
     def associate(self, obj):
-        self.code.associate(obj, self.module_name)
+        if isinstance(obj, ModuleType):
+            self.root.module = obj
+            self.root.globals = vars(obj)
+        elif isinstance(obj, dict):
+            self.root.module = None
+            self.root.globals = obj
+        else:
+            raise TypeError("associate expects a dict or module")
 
     def read_source(self):
         source = open(self.filename).read()
@@ -1078,10 +1090,10 @@ class CodeFile:
             else:
                 return True
 
-        corr = self.code.correspond(other.code)
+        corr = self.root.correspond(other.root)
         if corr.changed:
             self.dirty = True
-        self.code.apply_correspondence(corr, order=order, controller=controller)
+        self.root.apply_correspondence(corr, order=order, controller=controller)
         return corr.summary()
 
     def commit(self, check_stale=True):
@@ -1091,47 +1103,47 @@ class CodeFile:
             raise StaleException(
                 f"Cannot commit changes to {self.filename} because the file was changed."
             )
-        new_source = self.code.reconstruct()
+        new_source = self.root.reconstruct()
         if not new_source.endswith("\n"):
             new_source += "\n"
         with open(self.filename, "w") as f:
             f.write(new_source)
-        self.code.stash()
+        self.root.stash()
         self.saved = new_source
         self.dirty = False
 
     def refresh(self):
         new_source = self.read_source()
-        if new_source != self.code.codestring or self.dirty:
+        if new_source != self.root.codestring or self.dirty:
             cf = CodeFile(
                 self.filename, source=new_source, module_name=self.module_name
             )
             self.merge(cf)
-            self.code.stash()
+            self.root.stash()
 
 
 @dataclass
 class CodeFileOperation:
     codefile: CodeFile
-    code: Code
+    defn: Definition
 
 
 @dataclass
 class UpdateOperation(CodeFileOperation):
     def __str__(self):
-        return f"Update {self.code.dotpath()} @L{self.code.stashed.lineno}"
+        return f"Update {self.defn.dotpath()} @L{self.defn.stashed.lineno}"
 
 
 @dataclass
 class AddOperation(CodeFileOperation):
     def __str__(self):
-        if isinstance(self.code, CodeChunk):
-            return f"Run {self.code.parent.dotpath()} @L{self.code.stashed.lineno}: {self.code.text}"
+        if isinstance(self.defn, LineDefinition):
+            return f"Run {self.defn.parent.dotpath()} @L{self.defn.stashed.lineno}: {self.defn.text}"
         else:
-            return f"Add {self.code.dotpath()} @L{self.code.stashed.lineno}"
+            return f"Add {self.defn.dotpath()} @L{self.defn.stashed.lineno}"
 
 
 @dataclass
 class DeleteOperation(CodeFileOperation):
     def __str__(self):
-        return f"Delete {self.code.dotpath()} @L{self.code.stashed.lineno}"
+        return f"Delete {self.defn.dotpath()} @L{self.defn.stashed.lineno}"

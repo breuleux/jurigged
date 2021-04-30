@@ -1,12 +1,14 @@
 import os
 import sys
+import types
 
 import pytest
 
 from jurigged import codetools
 from jurigged.register import ImportSniffer, Registry, glob_filter
 
-from .common import TemporaryModule, one_test_per_assert
+from . import common
+from .common import TemporaryModule, _blah, one_test_per_assert
 
 
 def glob_test(pattern, file):
@@ -108,18 +110,7 @@ def test_registry_get(tmod):
     sniff.uninstall()
 
 
-def _blah(x, y):
-    def inner():
-        return x + y
-
-    return inner
-
-
 def test_registry_find(tmod):
-    def _obj(defn):
-        (obj,) = defn.objects
-        return obj
-
     mangle = "_3"
     reg = Registry()
     sniff = reg.auto_register(glob_filter(tmod.rel("*.py")))
@@ -127,31 +118,31 @@ def test_registry_find(tmod):
 
     cf, defn = reg.find(zb.quack)
     assert cf.filename == tmod.rel("zb_3.py")
-    assert _obj(defn) is zb.quack
+    assert defn.get_object() is zb.quack.__code__
 
     cf, defn = reg.find(zb.Duck)
     assert cf.filename == tmod.rel("zb_3.py")
-    assert _obj(defn) is zb.Duck
+    assert defn.get_object() is zb.Duck
 
     cf, defn = reg.find(zb.Duck.quack)
     assert cf.filename == tmod.rel("zb_3.py")
-    assert _obj(defn) is zb.Duck.quack
+    assert defn.get_object() is zb.Duck.quack.__code__
 
     cf, defn = reg.find(_blah.__code__)
-    assert cf.filename == __file__
-    assert _obj(defn) is _blah
+    assert cf.filename == common.__file__
+    assert defn.get_object() is _blah.__code__
 
     cf, defn = reg.find(_blah)
-    assert cf.filename == __file__
-    assert _obj(defn) is _blah
+    assert cf.filename == common.__file__
+    assert defn.get_object() is _blah.__code__
 
     # Trigger the cached entry for filename -> module_name
     cf, defn = reg.find(glob_filter.__code__)
     assert "jurigged/utils.py" in cf.filename
-    assert _obj(defn) is glob_filter
+    assert defn.get_object() is glob_filter.__code__
 
     cf, defn = reg.find(_blah(3, 4))
-    assert cf.filename == __file__
+    assert cf.filename == common.__file__
     assert defn is not None
 
     with pytest.raises(TypeError):
@@ -160,6 +151,21 @@ def test_registry_find(tmod):
     assert reg.get_at("inexistent", 3) == (None, None)
 
     sniff.uninstall()
+
+
+def test_registry_cannot_find(tmod):
+    reg = Registry()
+    typ = type("Generated", (object,), {})
+    cf, defn = reg.find(typ)
+    assert cf.filename == __file__
+    assert defn is None
+
+    fn = types.FunctionType(
+        _blah.__code__.replace(co_name="xxx", co_firstlineno=10000), {}
+    )
+    cf, defn = reg.find(fn)
+    assert cf.filename == common.__file__
+    assert defn is None
 
 
 def test_registry_import_error(tmod):

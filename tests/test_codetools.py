@@ -4,10 +4,10 @@ from types import SimpleNamespace as NS
 
 import pytest
 
+from jurigged.codedb import db
 from jurigged.codetools import CodeFile, StaleException
-from jurigged.utils import locate
 
-from .common import TemporaryModule
+from .common import TemporaryModule, catalogue
 from .snippets import apple
 
 
@@ -102,44 +102,47 @@ def iguana(tmod):
     return CodeCollection(tmod, "iguana")
 
 
+@pytest.fixture
+def jackfruit(tmod):
+    return CodeCollection(tmod, "jackfruit")
+
+
 def test_collect(apple_code):
     cat = {
-        f"{k[0]}@{k[2]}" if isinstance(k, tuple) else k: set(v.objects)
-        for k, v in apple_code.code.catalogue().items()
-        if set(v.objects)
+        f"{k[0]}@{k[2]}" if isinstance(k, tuple) else k: obj
+        for k, v in catalogue(apple_code.root).items()
+        if (obj := v.get_object()) is not None
     }
     assert cat == {
-        "ModuleCode@1": {apple},
-        "FunctionCode@1": {apple.crunch},
-        "FunctionCode@6": {apple.breakfast},
-        "FunctionCode@23": {apple.Orchard.cortland},
-        "ClassCode@13": {apple.Orchard},
-        "FunctionCode@14": {apple.Orchard.mcintosh},
-        "FunctionCode@18": {apple.Orchard.honeycrisp.__func__},
-        "FunctionCode@29": {apple.juggle},
-        "FunctionCode@36": {apple.pomme},
-        "FunctionCode@45": {apple.arbre},
-        "FunctionCode@46": {apple.pommier},
-        "FunctionCode@52": {apple.pommier.__wrapped__},
-        "ClassCode@57": {apple.FakeApple},
-        "FunctionCode@58": {apple.FakeApple.color.fget},
-        "FunctionCode@62": {apple.FakeApple.color.fset},
-        "tests.snippets.apple": {apple},
-        "tests.snippets.apple.crunch": {apple.crunch},
-        "tests.snippets.apple.breakfast": {apple.breakfast},
-        "tests.snippets.apple.Orchard.cortland": {apple.Orchard.cortland},
-        "tests.snippets.apple.Orchard": {apple.Orchard},
-        "tests.snippets.apple.Orchard.mcintosh": {apple.Orchard.mcintosh},
-        "tests.snippets.apple.Orchard.honeycrisp": {
-            apple.Orchard.honeycrisp.__func__
-        },
-        "tests.snippets.apple.juggle": {apple.juggle},
-        "tests.snippets.apple.pomme": {apple.pomme},
-        "tests.snippets.apple.arbre": {apple.arbre},
-        "tests.snippets.apple.arbre.branche": {apple.pommier},
-        "tests.snippets.apple.pommier": {apple.pommier.__wrapped__},
-        "tests.snippets.apple.FakeApple": {apple.FakeApple},
-        "tests.snippets.apple.FakeApple.color": {apple.FakeApple.color.fset},
+        "FunctionDefinition@1": apple.crunch.__code__,
+        "FunctionDefinition@6": apple.breakfast.__code__,
+        "FunctionDefinition@23": apple.Orchard.cortland.__code__,
+        "ClassDefinition@13": apple.Orchard,
+        "FunctionDefinition@14": apple.Orchard.mcintosh.__code__,
+        "FunctionDefinition@18": apple.Orchard.honeycrisp.__func__.__code__,
+        "FunctionDefinition@29": apple.juggle.__code__,
+        "FunctionDefinition@36": apple.pomme.__code__,
+        "FunctionDefinition@37": apple.pomme().__code__,
+        "FunctionDefinition@45": apple.arbre.__code__,
+        "FunctionDefinition@46": apple.pommier.__code__,
+        "FunctionDefinition@52": apple.pommier.__wrapped__.__code__,
+        "ClassDefinition@57": apple.FakeApple,
+        "FunctionDefinition@58": apple.FakeApple.color.fget.__code__,
+        "FunctionDefinition@62": apple.FakeApple.color.fset.__code__,
+        "tests.snippets.apple.crunch": apple.crunch.__code__,
+        "tests.snippets.apple.breakfast": apple.breakfast.__code__,
+        "tests.snippets.apple.Orchard.cortland": apple.Orchard.cortland.__code__,
+        "tests.snippets.apple.Orchard": apple.Orchard,
+        "tests.snippets.apple.Orchard.mcintosh": apple.Orchard.mcintosh.__code__,
+        "tests.snippets.apple.Orchard.honeycrisp": apple.Orchard.honeycrisp.__func__.__code__,
+        "tests.snippets.apple.juggle": apple.juggle.__code__,
+        "tests.snippets.apple.pomme": apple.pomme.__code__,
+        "tests.snippets.apple.pomme.ver": apple.pomme().__code__,
+        "tests.snippets.apple.arbre": apple.arbre.__code__,
+        "tests.snippets.apple.arbre.branche": apple.pommier.__code__,
+        "tests.snippets.apple.pommier": apple.pommier.__wrapped__.__code__,
+        "tests.snippets.apple.FakeApple": apple.FakeApple,
+        "tests.snippets.apple.FakeApple.color": apple.FakeApple.color.fset.__code__,
     }
 
 
@@ -301,11 +304,14 @@ def test_commit_partial(dandelion):
 
 def test_commit_partial_2(dandelion):
     orig = dandelion.read()
+    (plack_code,) = [
+        x
+        for x in dandelion.main.root.walk()
+        if x.get_object() is dandelion.module.plack.__code__
+    ]
     dandelion.main.merge(
         dandelion.cf.repl,
-        allow_deletions=[
-            locate(dandelion.module.plack, dandelion.main.code.catalogue())
-        ],
+        allow_deletions=[plack_code],
     )
     assert dandelion.read() == orig
     dandelion.main.commit()
@@ -394,7 +400,30 @@ def test_bad_statement(iguana):
     assert iguana.module.lizard(3) == "ssssss"
 
 
-def test_set_globals(ballon):
+def test_associate(ballon):
     glb = {"a": 2}
-    ballon.main.code.set_globals(glb)
-    assert ballon.main.code.get_globals() is glb
+    ballon.main.associate(glb)
+    assert ballon.main.root.get_globals() is glb
+
+    with pytest.raises(TypeError):
+        ballon.main.associate(1234)
+
+
+def test_custom_conform(jackfruit):
+    assert jackfruit.module.jack1(3, 4) == 12
+    assert jackfruit.module.jack2(3, 4) == 12
+
+    assert jackfruit.module.jack1.__code__.co_name == "jack1"
+    assert jackfruit.module.jack2.__code__.co_name == "jack2"
+
+    jackfruit.main.merge(jackfruit.cf.mod)
+
+    assert jackfruit.module.jack1(3, 4) == 7
+    assert jackfruit.module.jack2(3, 4) == 7
+
+    assert jackfruit.module.jack1.__code__.co_name == "jack1"
+    assert jackfruit.module.jack2.__code__.co_name == "jack2"
+
+    # Trigger a special path in collect_all
+    db.collect_all()
+    assert len(db.functions[jackfruit.module.jack1.__code__]) == 2

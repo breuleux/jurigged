@@ -34,7 +34,7 @@ class WatchOperation:
 
 @ovld
 def default_logger(event: codetools.UpdateOperation):
-    if isinstance(event.code, codetools.FunctionCode):
+    if isinstance(event.defn, codetools.FunctionDefinition):
         print(T.bold_yellow(str(event)))
 
 
