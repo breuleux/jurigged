@@ -118,7 +118,7 @@ def test_registry_get(tmod):
 
 def test_registry_find(tmod):
     def _obj(defn):
-        (obj,) = defn.objects2()
+        (obj,) = defn.get_objects()
         return obj
 
     mangle = "_3"

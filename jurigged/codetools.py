@@ -188,7 +188,7 @@ class Code:
     def get_globals(self):
         return self.parent and self.parent.get_globals()
 
-    def objects2(self):
+    def get_objects(self):
         return set()
 
     ##############
@@ -484,7 +484,7 @@ class GroupedCode(Code):
             elif new is None:
                 if controller("pre-delete", ccorr):
                     # Deletion
-                    for obj in orig.objects2():
+                    for obj in orig.get_objects():
                         conform(obj, None)
                     controller("post-delete", ccorr)
                 else:
@@ -632,12 +632,12 @@ class ModuleCode(GroupedCode):
         self.objects = [glb]
 
     def get_globals(self):
-        (mod,) = self.objects2()
+        (mod,) = self.get_objects()
         if not isinstance(mod, dict):
             mod = vars(mod)
         return mod
 
-    def objects2(self):
+    def get_objects(self):
         return self.objects
 
     ##############
@@ -648,7 +648,7 @@ class ModuleCode(GroupedCode):
         return child.evaluate(self.get_globals(), None)
 
     def delete_property(self, prop):
-        (mod,) = self.objects2()
+        (mod,) = self.get_objects()
         delattr(mod, prop)
 
 
@@ -660,15 +660,15 @@ class ClassCode(GroupedCode):
     ##############
 
     def evaluate_child(self, child):
-        for obj in self.objects2():
+        for obj in self.get_objects():
             return child.evaluate(self.get_globals(), attrproxy(obj))
 
     def delete_property(self, prop):
-        for obj in self.objects2():
+        for obj in self.get_objects():
             delattr(obj, prop)
 
-    def objects2(self):
-        parent, = self.parent.objects2()
+    def get_objects(self):
+        parent, = self.parent.get_objects()
         if isinstance(parent, dict):
             return [parent[self.name]]
         else:
@@ -684,7 +684,7 @@ class FunctionCode(GroupedCode):
 
     def stash(self, lineno=1, col_offset=0):
         stashed = super().stash(lineno, col_offset)
-        for obj in self.objects2():
+        for obj in self.get_objects():
             # Update the firstlineno in the functions so that it matches
             # the position in the written file (updates to the functions
             # above them might have pushed them down)
@@ -733,7 +733,7 @@ class FunctionCode(GroupedCode):
     # Evaluation #
     ##############
 
-    def objects2(self):
+    def get_objects(self):
         try:
             code = getattr(self, "_codeobj", None)
             if code is None:
@@ -752,7 +752,7 @@ class FunctionCode(GroupedCode):
             return set()
 
     def reevaluate(self, new_node, glb, lcl):
-        if not self.objects2():
+        if not self.get_objects():
             return
 
         ext = new_node.extent
@@ -815,7 +815,7 @@ class FunctionCode(GroupedCode):
         else:
             new_obj = lcl[self.name]
         lcl[self.name] = previous
-        for obj in self.objects2():
+        for obj in self.get_objects():
             if new_obj is not obj:
                 conform(obj, new_obj)
         self._codeobj = new_obj.__code__
@@ -1066,7 +1066,7 @@ class CodeFile:
 
     @property
     def module(self):
-        (mod,) = self.code.objects2()
+        (mod,) = self.code.get_objects()
         return mod
 
     def associate(self, obj):
