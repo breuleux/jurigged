@@ -7,7 +7,7 @@ from jurigged import codetools
 from jurigged.register import ImportSniffer, Registry, glob_filter
 
 from . import common
-from .common import _blah, TemporaryModule, one_test_per_assert
+from .common import TemporaryModule, _blah, one_test_per_assert
 
 
 def glob_test(pattern, file):
@@ -107,13 +107,6 @@ def test_registry_get(tmod):
         codetools.UpdateOperation,
     ]
     sniff.uninstall()
-
-
-# def _blah(x, y):
-#     def inner():
-#         return x + y
-
-#     return inner
 
 
 def test_registry_find(tmod):

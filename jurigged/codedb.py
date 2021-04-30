@@ -1,6 +1,3 @@
-
-from collections import defaultdict
-from .utils import IDSet
 import gc
 import sys
 import types
@@ -18,17 +15,20 @@ class _CodeDB:
         for obj in gc.get_objects():
             if isinstance(obj, types.FunctionType):
                 co = obj.__code__
-                self.assimilate(co, (co.co_filename, *obj.__qualname__.split(".")))
+                self.assimilate(
+                    co, (co.co_filename, *obj.__qualname__.split("."))
+                )
 
-    def audithook(self, event, obj):
+    def audithook(self, event, obj):  # pragma: no cover
         # Note: Python does not trace audit hooks, so normal use will not show
         # coverage of this function even if it is executed
         if event == "exec":
-            code, = obj
+            (code,) = obj
             self.assimilate(code)
 
     def assimilate(self, code, path=()):
-        if code.co_name == "<module>":
+        if code.co_name == "<module>":  # pragma: no cover
+            # Typically triggered by the audit hook
             name = code.co_filename
         elif code.co_name.startswith("<"):
             return

@@ -7,14 +7,14 @@ from collections import Counter
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace as dc_replace
-from types import CodeType, FunctionType
+from types import FunctionType
 from typing import List, Optional
 
 from ovld import ovld
 
 from .codedb import db
 from .parse import Variables, variables
-from .utils import ConformException, EventSource, IDSet, conform, locate
+from .utils import ConformException, EventSource, conform
 
 current_info = ContextVar("current_info", default=None)
 
@@ -147,7 +147,6 @@ class Code:
     name: str = None
     filename: str = None
     parent: Optional["Code"] = None
-    objects: list = field(default_factory=list)
 
     # This is the original line number, used in the first lookup of the
     # code object. It does not need to remain in sync with updates to the
@@ -180,7 +179,10 @@ class Code:
 
     def codepath(self, skip=0):
         chain = list(self.hierarchy(skip=skip))
-        return tuple((x.filename if i == 0 else x.name) or "<line>" for i, x in enumerate(reversed(chain)))
+        return tuple(
+            (x.filename if i == 0 else x.name) or "<line>"
+            for i, x in enumerate(reversed(chain))
+        )
 
     def module_name(self):
         return self.parent and self.parent.module_name()
@@ -604,7 +606,6 @@ class GroupedCode(Code):
         super().evaluate(glb, lcl)
         obj = (lcl or glb).get(self.name, None)
         obj.__qualname__ = ".".join(self.dotpath().split(".")[1:])
-        mname = self.module_name()
 
     @abstractmethod
     def evaluate_child(self, child):
@@ -617,6 +618,8 @@ class GroupedCode(Code):
 
 @dataclass
 class ModuleCode(GroupedCode):
+    globals: object = None
+
     def __post_init__(self):
         super().__post_init__()
         self.ignore_names = True
@@ -629,16 +632,19 @@ class ModuleCode(GroupedCode):
         return self.name
 
     def set_globals(self, glb):
-        self.objects = [glb]
+        self.globals = glb
 
     def get_globals(self):
-        (mod,) = self.get_objects()
+        mod = self.globals
         if not isinstance(mod, dict):
             mod = vars(mod)
         return mod
 
+    def get_object(self):
+        return self.globals
+
     def get_objects(self):
-        return self.objects
+        return [self.globals]
 
     ##############
     # Evaluation #
@@ -648,8 +654,7 @@ class ModuleCode(GroupedCode):
         return child.evaluate(self.get_globals(), None)
 
     def delete_property(self, prop):
-        (mod,) = self.get_objects()
-        delattr(mod, prop)
+        delattr(self.globals, prop)
 
 
 @dataclass
@@ -659,20 +664,24 @@ class ClassCode(GroupedCode):
     # Evaluation #
     ##############
 
+    def get_object(self):
+        parent = self.parent.get_object()
+        if isinstance(parent, dict):
+            return parent.get(self.name, None)
+        else:
+            return getattr(parent, self.name, None)
+
+    def get_objects(self):
+        obj = self.get_object()
+        return [] if obj is None else [obj]
+
     def evaluate_child(self, child):
-        for obj in self.get_objects():
+        if (obj := self.get_object()) is not None:
             return child.evaluate(self.get_globals(), attrproxy(obj))
 
     def delete_property(self, prop):
-        for obj in self.get_objects():
+        if (obj := self.get_object()) is not None:
             delattr(obj, prop)
-
-    def get_objects(self):
-        parent, = self.parent.get_objects()
-        if isinstance(parent, dict):
-            return [parent[self.name]]
-        else:
-            return [getattr(parent, self.name)]
 
 
 @dataclass
@@ -733,26 +742,27 @@ class FunctionCode(GroupedCode):
     # Evaluation #
     ##############
 
+    def get_object(self):
+        return None
+
     def get_objects(self):
-        try:
-            code = getattr(self, "_codeobj", None)
-            if code is None:
-                pth = (*self.codepath(), self.groundline)
-                if pth in db.codes:
-                    self._codeobj = code = db.codes[pth]
+        code = getattr(self, "_codeobj", None)
+        if code is None:
+            pth = (*self.codepath(), self.groundline)
+            if pth in db.codes:
+                self._codeobj = code = db.codes[pth]
 
-            rval = set()
-            if code is not None:
-                for fn in gc.get_referrers(code):
-                    if isinstance(fn, FunctionType):
-                        rval.add(fn)
-            return rval
-
-        except Exception as exc:
-            return set()
+        rval = set()
+        if code is not None:
+            for fn in gc.get_referrers(code):
+                if isinstance(fn, FunctionType):
+                    rval.add(fn)
+        return rval
 
     def reevaluate(self, new_node, glb, lcl):
-        if not self.get_objects():
+        objs = self.get_objects()
+
+        if not objs:  # pragma: no cover
             return
 
         ext = new_node.extent
@@ -815,7 +825,7 @@ class FunctionCode(GroupedCode):
         else:
             new_obj = lcl[self.name]
         lcl[self.name] = previous
-        for obj in self.get_objects():
+        for obj in objs:
             if new_obj is not obj:
                 conform(obj, new_obj)
         self._codeobj = new_obj.__code__

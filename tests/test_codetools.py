@@ -104,9 +104,9 @@ def iguana(tmod):
 
 def test_collect(apple_code):
     cat = {
-        f"{k[0]}@{k[2]}" if isinstance(k, tuple) else k: set(v.objects)
+        f"{k[0]}@{k[2]}" if isinstance(k, tuple) else k: set(v.get_objects())
         for k, v in apple_code.code.catalogue().items()
-        if set(v.objects)
+        if set(v.get_objects())
     }
     assert cat == {
         "ModuleCode@1": {apple},
