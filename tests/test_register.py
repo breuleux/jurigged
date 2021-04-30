@@ -6,7 +6,8 @@ import pytest
 from jurigged import codetools
 from jurigged.register import ImportSniffer, Registry, glob_filter
 
-from .common import TemporaryModule, one_test_per_assert
+from . import common
+from .common import _blah, TemporaryModule, one_test_per_assert
 
 
 def glob_test(pattern, file):
@@ -108,16 +109,16 @@ def test_registry_get(tmod):
     sniff.uninstall()
 
 
-def _blah(x, y):
-    def inner():
-        return x + y
+# def _blah(x, y):
+#     def inner():
+#         return x + y
 
-    return inner
+#     return inner
 
 
 def test_registry_find(tmod):
     def _obj(defn):
-        (obj,) = defn.objects
+        (obj,) = defn.objects2()
         return obj
 
     mangle = "_3"
@@ -138,20 +139,20 @@ def test_registry_find(tmod):
     assert _obj(defn) is zb.Duck.quack
 
     cf, defn = reg.find(_blah.__code__)
-    assert cf.filename == __file__
+    assert cf.filename == common.__file__
     assert _obj(defn) is _blah
 
     cf, defn = reg.find(_blah)
-    assert cf.filename == __file__
+    assert cf.filename == common.__file__
     assert _obj(defn) is _blah
 
-    # Trigger the cached entry for filename -> module_name
-    cf, defn = reg.find(glob_filter.__code__)
-    assert "jurigged/utils.py" in cf.filename
-    assert _obj(defn) is glob_filter
+    # # Trigger the cached entry for filename -> module_name
+    # cf, defn = reg.find(glob_filter.__code__)
+    # assert "jurigged/utils.py" in cf.filename
+    # assert _obj(defn) is glob_filter
 
     cf, defn = reg.find(_blah(3, 4))
-    assert cf.filename == __file__
+    assert cf.filename == common.__file__
     assert defn is not None
 
     with pytest.raises(TypeError):

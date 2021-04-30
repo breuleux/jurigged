@@ -14,7 +14,7 @@ from ovld import ovld
 
 from .codedb import db
 from .parse import Variables, variables
-from .utils import ConformException, EventSource, IDSet, conform, dig, locate
+from .utils import ConformException, EventSource, IDSet, conform, locate
 
 current_info = ContextVar("current_info", default=None)
 
@@ -147,7 +147,12 @@ class Code:
     name: str = None
     filename: str = None
     parent: Optional["Code"] = None
-    objects: IDSet = field(default_factory=IDSet)
+    objects: list = field(default_factory=list)
+
+    # This is the original line number, used in the first lookup of the
+    # code object. It does not need to remain in sync with updates to the
+    # source code.
+    groundline: int = -1
 
     def __post_init__(self):
         self._code = None
@@ -182,6 +187,9 @@ class Code:
 
     def get_globals(self):
         return self.parent and self.parent.get_globals()
+
+    def objects2(self):
+        return set()
 
     ##############
     # Management #
@@ -476,12 +484,8 @@ class GroupedCode(Code):
             elif new is None:
                 if controller("pre-delete", ccorr):
                     # Deletion
-                    if hasattr(orig, "objects2"):
-                        for obj in orig.objects2():
-                            conform(obj, None)
-                    else:
-                        for obj in orig.objects:
-                            conform(obj, None)
+                    for obj in orig.objects2():
+                        conform(obj, None)
                     controller("post-delete", ccorr)
                 else:
                     self.append(orig, ensure_separation=True)
@@ -596,19 +600,11 @@ class GroupedCode(Code):
     # Evaluation #
     ##############
 
-    def associate(self, obj, module_name):
-        cat = self.catalogue()
-        for entry in dig(obj, module_name):
-            defn = locate(entry, cat)
-            if defn is not None:
-                defn.objects.add(entry)
-
     def evaluate(self, glb, lcl):
         super().evaluate(glb, lcl)
         obj = (lcl or glb).get(self.name, None)
         obj.__qualname__ = ".".join(self.dotpath().split(".")[1:])
         mname = self.module_name()
-        self.associate(obj, mname)
 
     @abstractmethod
     def evaluate_child(self, child):
@@ -636,10 +632,13 @@ class ModuleCode(GroupedCode):
         self.objects = [glb]
 
     def get_globals(self):
-        (mod,) = self.objects
+        (mod,) = self.objects2()
         if not isinstance(mod, dict):
             mod = vars(mod)
         return mod
+
+    def objects2(self):
+        return self.objects
 
     ##############
     # Evaluation #
@@ -649,7 +648,7 @@ class ModuleCode(GroupedCode):
         return child.evaluate(self.get_globals(), None)
 
     def delete_property(self, prop):
-        (mod,) = self.objects
+        (mod,) = self.objects2()
         delattr(mod, prop)
 
 
@@ -661,12 +660,19 @@ class ClassCode(GroupedCode):
     ##############
 
     def evaluate_child(self, child):
-        for obj in self.objects:
+        for obj in self.objects2():
             return child.evaluate(self.get_globals(), attrproxy(obj))
 
     def delete_property(self, prop):
-        for obj in self.objects:
+        for obj in self.objects2():
             delattr(obj, prop)
+
+    def objects2(self):
+        parent, = self.parent.objects2()
+        if isinstance(parent, dict):
+            return [parent[self.name]]
+        else:
+            return [getattr(parent, self.name)]
 
 
 @dataclass
@@ -678,7 +684,7 @@ class FunctionCode(GroupedCode):
 
     def stash(self, lineno=1, col_offset=0):
         stashed = super().stash(lineno, col_offset)
-        for obj in self.objects:
+        for obj in self.objects2():
             # Update the firstlineno in the functions so that it matches
             # the position in the written file (updates to the functions
             # above them might have pushed them down)
@@ -713,7 +719,6 @@ class FunctionCode(GroupedCode):
                     # replace it by the new, so if the reevaluation succeeds
                     # it is important to sync their objects.
                     ccorr.new._codeobj = ccorr.original._codeobj
-                    ccorr.new.objects = ccorr.original.objects
                     controller("post-update", ccorr)
                 except ConformException:
                     # Only re-raise for the top level FunctionCode so that
@@ -732,7 +737,7 @@ class FunctionCode(GroupedCode):
         try:
             code = getattr(self, "_codeobj", None)
             if code is None:
-                pth = self.codepath()
+                pth = (*self.codepath(), self.groundline)
                 if pth in db.codes:
                     self._codeobj = code = db.codes[pth]
 
@@ -747,7 +752,7 @@ class FunctionCode(GroupedCode):
             return set()
 
     def reevaluate(self, new_node, glb, lcl):
-        if not self.objects:  # pragma: no cover
+        if not self.objects2():
             return
 
         ext = new_node.extent
@@ -813,7 +818,6 @@ class FunctionCode(GroupedCode):
         for obj in self.objects2():
             if new_obj is not obj:
                 conform(obj, new_obj)
-        # db.codes[self.codepath()] = new_obj.__code__
         self._codeobj = new_obj.__code__
         node.extent = ext
         self.node = node
@@ -976,6 +980,8 @@ def collect_definitions(self, node: (ast.FunctionDef, ast.AsyncFunctionDef)):
     between = delta(node.body[-1].extent, fnend)
     cg.append(*distribute(between, defns[-1], None))
 
+    cg.groundline = deco0.lineno
+
     return cg
 
 
@@ -1060,11 +1066,11 @@ class CodeFile:
 
     @property
     def module(self):
-        (mod,) = self.code.objects
+        (mod,) = self.code.objects2()
         return mod
 
     def associate(self, obj):
-        self.code.associate(obj, self.module_name)
+        self.code.set_globals(obj)
 
     def read_source(self):
         source = open(self.filename).read()

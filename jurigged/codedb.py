@@ -36,7 +36,7 @@ class _CodeDB:
             name = code.co_name
         if name:
             path = (*path, name)
-            self.codes[path] = code
+            self.codes[(*path, code.co_firstlineno)] = code
         for ct in code.co_consts:
             if isinstance(ct, types.CodeType):
                 self.assimilate(ct, path)

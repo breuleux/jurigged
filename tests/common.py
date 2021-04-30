@@ -86,3 +86,10 @@ class TemporaryModule:
     def imp(self, name, mangle=True):
         mname, _ = self.transfer(name, mangle=mangle)
         return __import__(mname)
+
+
+def _blah(x, y):
+    def inner():
+        return x + y
+
+    return inner

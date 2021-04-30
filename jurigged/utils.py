@@ -42,70 +42,70 @@ def locate(obj: object, catalog):  # pragma: no cover
 #######
 
 
-@dataclass
-class Vars:
-    contents: dict
+# @dataclass
+# class Vars:
+#     contents: dict
 
 
-@ovld.dispatch(initial_state=lambda: {"seen": set()})
-def dig(self, obj, module_name):
-    if id(obj) in self.seen:
-        return
-    elif hasattr(obj, "__functions__"):
-        try:
-            yield from obj.__functions__
-        except Exception:  # pragma: no cover
-            return
-    else:
-        self.seen.add(id(obj))
-        yield from self.call(obj, module_name)
+# @ovld.dispatch(initial_state=lambda: {"seen": set()})
+# def dig(self, obj, module_name):
+#     if id(obj) in self.seen:
+#         return
+#     elif hasattr(obj, "__functions__"):
+#         try:
+#             yield from obj.__functions__
+#         except Exception:  # pragma: no cover
+#             return
+#     else:
+#         self.seen.add(id(obj))
+#         yield from self.call(obj, module_name)
 
 
-@ovld
-def dig(self, obj: types.FunctionType, module_name):
-    yield obj
-    for x in obj.__closure__ or []:
-        yield from self(x.cell_contents, module_name)
-    if hasattr(obj, "__wrapped__"):
-        yield from self(obj.__wrapped__, module_name)
+# @ovld
+# def dig(self, obj: types.FunctionType, module_name):
+#     yield obj
+#     for x in obj.__closure__ or []:
+#         yield from self(x.cell_contents, module_name)
+#     if hasattr(obj, "__wrapped__"):
+#         yield from self(obj.__wrapped__, module_name)
 
 
-@ovld
-def dig(self, obj: types.ModuleType, module_name):
-    yield obj
-    if obj.__name__ == module_name:
-        yield from dig(Vars(vars(obj)), module_name)
+# @ovld
+# def dig(self, obj: types.ModuleType, module_name):
+#     yield obj
+#     if obj.__name__ == module_name:
+#         yield from dig(Vars(vars(obj)), module_name)
 
 
-@ovld
-def dig(self, obj: type, module_name):
-    yield obj
-    if obj.__module__ == module_name:
-        for value in vars(obj).values():
-            yield from self(value, module_name)
+# @ovld
+# def dig(self, obj: type, module_name):
+#     yield obj
+#     if obj.__module__ == module_name:
+#         for value in vars(obj).values():
+#             yield from self(value, module_name)
 
 
-@ovld
-def dig(self, obj: (classmethod, staticmethod), module_name):
-    yield from self(obj.__func__, module_name)
+# @ovld
+# def dig(self, obj: (classmethod, staticmethod), module_name):
+#     yield from self(obj.__func__, module_name)
 
 
-@ovld
-def dig(self, obj: Vars, module_name):
-    for value in obj.contents.values():
-        yield from self(value, module_name)
+# @ovld
+# def dig(self, obj: Vars, module_name):
+#     for value in obj.contents.values():
+#         yield from self(value, module_name)
 
 
-@ovld
-def dig(self, obj: property, module_name):
-    yield from self(obj.fget, module_name)
-    yield from self(obj.fset, module_name)
-    yield from self(obj.fdel, module_name)
+# @ovld
+# def dig(self, obj: property, module_name):
+#     yield from self(obj.fget, module_name)
+#     yield from self(obj.fset, module_name)
+#     yield from self(obj.fdel, module_name)
 
 
-@ovld
-def dig(self, obj: object, module_name):
-    yield from []
+# @ovld
+# def dig(self, obj: object, module_name):
+#     yield from []
 
 
 ###########
