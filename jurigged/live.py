@@ -160,15 +160,10 @@ def cli():  # pragma: no cover
         "path", metavar="PATH", help="Path to the script to run", nargs="?"
     )
     parser.add_argument(
-        "--verbose",
-        "-v",
+        "--interactive",
+        "-i",
         action="store_true",
-        help="Show watched files and changes as they happen",
-    )
-    parser.add_argument(
-        "--version",
-        action="store_true",
-        help="Print version",
+        help="Run an interactive session after the program ends",
     )
     parser.add_argument(
         "--watch",
@@ -190,6 +185,17 @@ def cli():  # pragma: no cover
         help="Module or module:function to run",
     )
     parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Show watched files and changes as they happen",
+    )
+    parser.add_argument(
+        "--version",
+        action="store_true",
+        help="Print version",
+    )
+    parser.add_argument(
         "rest", metavar="...", nargs=argparse.REMAINDER, help="Script arguments"
     )
     opts = parser.parse_args()
@@ -200,6 +206,8 @@ def cli():  # pragma: no cover
         "logger": default_logger if opts.verbose else conservative_logger,
         "debounce": opts.debounce or DEFAULT_DEBOUNCE,
     }
+
+    banner = ""
 
     if opts.version:
         print(version)
@@ -215,9 +223,11 @@ def cli():  # pragma: no cover
         if ":" in opts.module:
             module, func = opts.module.split(":", 1)
             __import__(module, fromlist=[])
-            getattr(sys.modules[module], func)()
+            module_obj = sys.modules[module]
+            getattr(module_obj, func)()
+            glb = vars(module_obj)
         else:
-            runpy.run_module(opts.module, run_name="__main__")
+            glb = runpy.run_module(opts.module, run_name="__main__")
 
     elif opts.path:
         path = os.path.abspath(opts.path)
@@ -228,8 +238,13 @@ def cli():  # pragma: no cover
             watcher.registry.prepare("__main__", path)
         watcher.start()
         sys.argv[1:] = opts.rest
-        runpy.run_path(path, run_name="__main__")
+        glb = runpy.run_path(path, run_name="__main__")
 
     else:
+        opts.interactive = True
         watch(**watch_args)
-        code.interact()
+        glb = {}
+        banner = None
+
+    if opts.interactive:
+        code.interact(banner=banner, local=glb, exitmsg="")
