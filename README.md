@@ -44,7 +44,9 @@ jurigged
 Full help:
 
 ```
-usage: jurigged [-h] [--verbose] [--watch PATH] [-m MODULE] [PATH] ...
+usage: jurigged [-h] [--interactive] [--watch PATH] [--debounce DEBOUNCE] [-m MODULE]
+                [--verbose] [--version]
+                [PATH] ...
 
 Run a Python script so that it is live-editable.
 
@@ -54,12 +56,14 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  --verbose, -v         Show watched files and changes as they happen
+  --interactive, -i     Run an interactive session after the program ends
   --watch PATH, -w PATH
                         Wildcard path/directory for which files to watch
   --debounce DEBOUNCE, -d DEBOUNCE
                         Interval to wait for to refresh a modified file, in seconds
   -m MODULE             Module or module:function to run
+  --verbose, -v         Show watched files and changes as they happen
+  --version             Print version
 ```
 
 
