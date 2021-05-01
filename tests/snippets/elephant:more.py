@@ -1,21 +1,21 @@
 
 class Rememberer:
     def __init__(self):
-        self.__functions__ = []
+        self.funcs = []
 
     def register(self, fn):
-        self.__functions__.append(fn)
+        self.funcs.append(fn)
         fn.__conform__ = lambda new: self.recode(fn, new)
         return self
 
     def recode(self, fn, new):
         if new is None:
-            self.__functions__.remove(fn)
+            self.funcs.remove(fn)
         else:
             fn.__code__ = new.__code__
 
     def __call__(self, *args):
-        return [fn(*args) for fn in self.__functions__]
+        return [fn(*args) for fn in self.funcs]
 
 
 activities = Rememberer()
