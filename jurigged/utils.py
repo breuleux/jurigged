@@ -1,4 +1,5 @@
 import fnmatch
+import gc
 import os
 import types
 
@@ -55,8 +56,15 @@ def conform(self, obj1, obj2):
 
 @ovld
 def conform(self, obj1: types.FunctionType, obj2: types.FunctionType):
+    self(obj1, obj2.__code__)
+    obj1.__defaults__ = obj2.__defaults__
+    obj1.__kwdefaults__ = obj2.__kwdefaults__
+
+
+@ovld
+def conform(self, obj1: types.FunctionType, obj2: types.CodeType):
     fv1 = obj1.__code__.co_freevars
-    fv2 = obj2.__code__.co_freevars
+    fv2 = obj2.co_freevars
     if fv1 != fv2:
         msg = (
             f"Cannot replace closure `{obj1.__name__}` because the free "
@@ -65,9 +73,16 @@ def conform(self, obj1: types.FunctionType, obj2: types.FunctionType):
         if ("__class__" in (fv1 or ())) ^ ("__class__" in (fv2 or ())):
             msg += " Note: The use of `super` entails the `__class__` free variable."
         raise ConformException(msg)
-    obj1.__code__ = obj2.__code__
-    obj1.__defaults__ = obj2.__defaults__
-    obj1.__kwdefaults__ = obj2.__kwdefaults__
+    obj1.__code__ = obj2
+
+
+@ovld
+def conform(
+    self, obj1: types.CodeType, obj2: (types.CodeType, types.FunctionType)
+):
+    for fn in gc.get_referrers(obj1):
+        if isinstance(fn, types.FunctionType):
+            self(fn, obj2)
 
 
 @ovld

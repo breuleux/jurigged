@@ -7,7 +7,7 @@ from collections import Counter
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace as dc_replace
-from types import FunctionType
+from types import CodeType, FunctionType
 from typing import List, Optional
 
 from ovld import ovld
@@ -687,6 +687,8 @@ class ClassCode(GroupedCode):
 @dataclass
 class FunctionCode(GroupedCode):
 
+    _codeobj: object = None
+
     ##############
     # Management #
     ##############
@@ -714,26 +716,39 @@ class FunctionCode(GroupedCode):
     def apply_correspondence(self, corr, order, controller):
         assert corr.corresponds and corr.changed
 
+        # Reevaluate this function
         glb = self.get_globals()
+        new_obj = self.reevaluate(corr.new.node, glb)
+        new_code = new_obj.__code__
+
+        # Gather the code objects of all closures into subcodes
+        subcodes = {}
+
+        def _fill_subcodes(code, path):
+            subcodes[path] = code
+            for co in code.co_consts:
+                if isinstance(co, CodeType):
+                    _fill_subcodes(co, (*path, co.co_name))
+
+        here = self.codepath()
+        _fill_subcodes(new_code, here)
+        del subcodes[here]
+
+        # Synchronize changes in closure codes
         for ccorr in corr.walk():
             if (
                 isinstance(ccorr.original, FunctionCode)
                 and ccorr.new is not None
-                and ccorr.changed
                 and controller("pre-update", ccorr)
+                and (subcode := subcodes.get(ccorr.original.codepath(), None))
             ):
-                try:
-                    ccorr.original.reevaluate(ccorr.new.node, glb, None)
-                    # Note that we will throw out the original ccorr and
-                    # replace it by the new, so if the reevaluation succeeds
-                    # it is important to sync their objects.
-                    ccorr.new._codeobj = ccorr.original._codeobj
-                    controller("post-update", ccorr)
-                except ConformException:
-                    # Only re-raise for the top level FunctionCode so that
-                    # its parent tries to run it anew
-                    if ccorr is corr:
-                        raise
+                conform(ccorr.original.get_codeobj(), subcode)
+                ccorr.original._codeobj = subcode
+                # Note that we will throw out the original ccorr and
+                # replace it by the new, so if the reevaluation succeeds
+                # it is important to sync their objects.
+                ccorr.new._codeobj = ccorr.original._codeobj
+                controller("post-update", ccorr)
 
         self.children = []
         self.append(*corr.new.children)
@@ -745,26 +760,22 @@ class FunctionCode(GroupedCode):
     def get_object(self):
         return None
 
-    def get_objects(self):
-        code = getattr(self, "_codeobj", None)
-        if code is None:
+    def get_codeobj(self):
+        if self._codeobj is None:
             pth = (*self.codepath(), self.groundline)
             if pth in db.codes:
                 self._codeobj = code = db.codes[pth]
+        return self._codeobj
 
+    def get_objects(self):
         rval = set()
-        if code is not None:
+        if (code := self.get_codeobj()) is not None:
             for fn in gc.get_referrers(code):
                 if isinstance(fn, FunctionType):
                     rval.add(fn)
         return rval
 
-    def reevaluate(self, new_node, glb, lcl):
-        objs = self.get_objects()
-
-        if not objs:  # pragma: no cover
-            return
-
+    def reevaluate(self, new_node, glb):
         ext = new_node.extent
         closure = False
         lcl = {}
@@ -782,6 +793,9 @@ class FunctionCode(GroupedCode):
         )
         previous = lcl.get(self.name, None)
         if self.variables.closure:
+            # Because reevaluate is typically not run on closures, this code
+            # path is essentially only entered for functions that use super(),
+            # since they are implicit closures on __class__
             closure = True
             names = tuple(sorted(self.variables.closure))
             wrap = ast.copy_location(
@@ -825,12 +839,11 @@ class FunctionCode(GroupedCode):
         else:
             new_obj = lcl[self.name]
         lcl[self.name] = previous
-        for obj in objs:
-            if new_obj is not obj:
-                conform(obj, new_obj)
-        self._codeobj = new_obj.__code__
         node.extent = ext
         self.node = node
+        conform(self.get_codeobj(), new_obj)
+        self._codeobj = new_obj.__code__
+        return new_obj
 
 
 @dataclass
