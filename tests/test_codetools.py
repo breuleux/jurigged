@@ -108,40 +108,40 @@ def jackfruit(tmod):
 
 def test_collect(apple_code):
     cat = {
-        f"{k[0]}@{k[2]}" if isinstance(k, tuple) else k: objs
+        f"{k[0]}@{k[2]}" if isinstance(k, tuple) else k: obj
         for k, v in catalogue(apple_code.code).items()
-        if (objs := set(v.get_objects()))
+        if (obj := v.get_object()) is not None
     }
     assert cat == {
-        "FunctionCode@1": {apple.crunch},
-        "FunctionCode@6": {apple.breakfast},
-        "FunctionCode@23": {apple.Orchard.cortland},
-        "ClassCode@13": {apple.Orchard},
-        "FunctionCode@14": {apple.Orchard.mcintosh},
-        "FunctionCode@18": {apple.Orchard.honeycrisp.__func__},
-        "FunctionCode@29": {apple.juggle},
-        "FunctionCode@36": {apple.pomme},
-        "FunctionCode@45": {apple.arbre},
-        "FunctionCode@46": {apple.pommier},
-        "FunctionCode@52": {apple.pommier.__wrapped__},
-        "ClassCode@57": {apple.FakeApple},
-        "FunctionCode@58": {apple.FakeApple.color.fget},
-        "FunctionCode@62": {apple.FakeApple.color.fset},
-        "tests.snippets.apple.crunch": {apple.crunch},
-        "tests.snippets.apple.breakfast": {apple.breakfast},
-        "tests.snippets.apple.Orchard.cortland": {apple.Orchard.cortland},
-        "tests.snippets.apple.Orchard": {apple.Orchard},
-        "tests.snippets.apple.Orchard.mcintosh": {apple.Orchard.mcintosh},
-        "tests.snippets.apple.Orchard.honeycrisp": {
-            apple.Orchard.honeycrisp.__func__
-        },
-        "tests.snippets.apple.juggle": {apple.juggle},
-        "tests.snippets.apple.pomme": {apple.pomme},
-        "tests.snippets.apple.arbre": {apple.arbre},
-        "tests.snippets.apple.arbre.branche": {apple.pommier},
-        "tests.snippets.apple.pommier": {apple.pommier.__wrapped__},
-        "tests.snippets.apple.FakeApple": {apple.FakeApple},
-        "tests.snippets.apple.FakeApple.color": {apple.FakeApple.color.fset},
+        "FunctionCode@1": apple.crunch.__code__,
+        "FunctionCode@6": apple.breakfast.__code__,
+        "FunctionCode@23": apple.Orchard.cortland.__code__,
+        "ClassCode@13": apple.Orchard,
+        "FunctionCode@14": apple.Orchard.mcintosh.__code__,
+        "FunctionCode@18": apple.Orchard.honeycrisp.__func__.__code__,
+        "FunctionCode@29": apple.juggle.__code__,
+        "FunctionCode@36": apple.pomme.__code__,
+        "FunctionCode@37": apple.pomme().__code__,
+        "FunctionCode@45": apple.arbre.__code__,
+        "FunctionCode@46": apple.pommier.__code__,
+        "FunctionCode@52": apple.pommier.__wrapped__.__code__,
+        "ClassCode@57": apple.FakeApple,
+        "FunctionCode@58": apple.FakeApple.color.fget.__code__,
+        "FunctionCode@62": apple.FakeApple.color.fset.__code__,
+        "tests.snippets.apple.crunch": apple.crunch.__code__,
+        "tests.snippets.apple.breakfast": apple.breakfast.__code__,
+        "tests.snippets.apple.Orchard.cortland": apple.Orchard.cortland.__code__,
+        "tests.snippets.apple.Orchard": apple.Orchard,
+        "tests.snippets.apple.Orchard.mcintosh": apple.Orchard.mcintosh.__code__,
+        "tests.snippets.apple.Orchard.honeycrisp": apple.Orchard.honeycrisp.__func__.__code__,
+        "tests.snippets.apple.juggle": apple.juggle.__code__,
+        "tests.snippets.apple.pomme": apple.pomme.__code__,
+        "tests.snippets.apple.pomme.ver": apple.pomme().__code__,
+        "tests.snippets.apple.arbre": apple.arbre.__code__,
+        "tests.snippets.apple.arbre.branche": apple.pommier.__code__,
+        "tests.snippets.apple.pommier": apple.pommier.__wrapped__.__code__,
+        "tests.snippets.apple.FakeApple": apple.FakeApple,
+        "tests.snippets.apple.FakeApple.color": apple.FakeApple.color.fset.__code__,
     }
 
 
@@ -306,7 +306,7 @@ def test_commit_partial_2(dandelion):
     (plack_code,) = [
         x
         for x in dandelion.main.code.walk()
-        if dandelion.module.plack in x.get_objects()
+        if x.get_object() is dandelion.module.plack.__code__
     ]
     dandelion.main.merge(
         dandelion.cf.repl,

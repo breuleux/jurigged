@@ -187,8 +187,8 @@ class Code:
     def get_globals(self):
         return self.parent and self.parent.get_globals()
 
-    def get_objects(self):
-        return set()
+    def get_object(self):
+        return None
 
     def walk(self):
         yield self
@@ -479,8 +479,7 @@ class GroupedCode(Code):
             elif new is None:
                 if controller("pre-delete", ccorr):
                     # Deletion
-                    for obj in orig.get_objects():
-                        conform(obj, None)
+                    conform(orig.get_object(), None)
                     controller("post-delete", ccorr)
                 else:
                     self.append(orig, ensure_separation=True)
@@ -619,9 +618,6 @@ class ModuleCode(GroupedCode):
     def get_object(self):
         return self.globals
 
-    def get_objects(self):
-        return [self.globals]
-
     ##############
     # Evaluation #
     ##############
@@ -647,10 +643,6 @@ class ClassCode(GroupedCode):
         else:
             return getattr(parent, self.name, None)
 
-    def get_objects(self):
-        obj = self.get_object()
-        return [] if obj is None else [obj]
-
     def evaluate_child(self, child):
         if (obj := self.get_object()) is not None:
             return child.evaluate(self.get_globals(), attrproxy(obj))
@@ -671,7 +663,7 @@ class FunctionCode(GroupedCode):
 
     def stash(self, lineno=1, col_offset=0):
         if not isinstance(self.parent, FunctionCode):
-            co = self.get_codeobj()
+            co = self.get_object()
             if co and (delta := lineno - co.co_firstlineno):
                 self.recode(shift_lineno(co, delta))
 
@@ -701,7 +693,7 @@ class FunctionCode(GroupedCode):
             if isinstance(closure, FunctionCode) and (
                 subcode := subcodes.get(closure.codepath(), None)
             ):
-                co = closure.get_codeobj()
+                co = closure.get_object()
                 if co is not subcode:
                     conform(co, subcode)
                     closure._codeobj = subcode
@@ -737,22 +729,11 @@ class FunctionCode(GroupedCode):
     ##############
 
     def get_object(self):
-        return None
-
-    def get_codeobj(self):
         if self._codeobj is None:
             pth = (*self.codepath(), self.groundline)
             if pth in db.codes:
                 self._codeobj = db.codes[pth]
         return self._codeobj
-
-    def get_objects(self):
-        rval = set()
-        if (code := self.get_codeobj()) is not None:
-            for fn in gc.get_referrers(code):
-                if isinstance(fn, FunctionType) or hasattr(fn, "__conform__"):
-                    rval.add(fn)
-        return rval
 
     def reevaluate(self, new_node, glb):
         ext = new_node.extent
@@ -820,7 +801,7 @@ class FunctionCode(GroupedCode):
         lcl[self.name] = previous
         node.extent = ext
         self.node = node
-        conform(self.get_codeobj(), new_obj)
+        conform(self.get_object(), new_obj)
         self._codeobj = new_obj.__code__
         return new_obj
 
@@ -1068,8 +1049,7 @@ class CodeFile:
 
     @property
     def module(self):
-        (mod,) = self.code.get_objects()
-        return mod
+        return self.code.get_object()
 
     def associate(self, obj):
         self.code.set_globals(obj)

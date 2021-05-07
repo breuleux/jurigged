@@ -110,10 +110,6 @@ def test_registry_get(tmod):
 
 
 def test_registry_find(tmod):
-    def _obj(defn):
-        (obj,) = defn.get_objects()
-        return obj
-
     mangle = "_3"
     reg = Registry()
     sniff = reg.auto_register(glob_filter(tmod.rel("*.py")))
@@ -121,23 +117,23 @@ def test_registry_find(tmod):
 
     cf, defn = reg.find(zb.quack)
     assert cf.filename == tmod.rel("zb_3.py")
-    assert _obj(defn) is zb.quack
+    assert defn.get_object() is zb.quack.__code__
 
     cf, defn = reg.find(zb.Duck)
     assert cf.filename == tmod.rel("zb_3.py")
-    assert _obj(defn) is zb.Duck
+    assert defn.get_object() is zb.Duck
 
     cf, defn = reg.find(zb.Duck.quack)
     assert cf.filename == tmod.rel("zb_3.py")
-    assert _obj(defn) is zb.Duck.quack
+    assert defn.get_object() is zb.Duck.quack.__code__
 
     cf, defn = reg.find(_blah.__code__)
     assert cf.filename == common.__file__
-    assert _obj(defn) is _blah
+    assert defn.get_object() is _blah.__code__
 
     cf, defn = reg.find(_blah)
     assert cf.filename == common.__file__
-    assert _obj(defn) is _blah
+    assert defn.get_object() is _blah.__code__
 
     # # Trigger the cached entry for filename -> module_name
     # cf, defn = reg.find(glob_filter.__code__)

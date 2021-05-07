@@ -46,7 +46,9 @@ def conform(self, obj1: types.FunctionType, obj2: types.CodeType):
 
 @ovld
 def conform(
-    self, obj1: types.CodeType, obj2: (types.CodeType, types.FunctionType)
+    self,
+    obj1: types.CodeType,
+    obj2: (types.CodeType, types.FunctionType, type(None)),
 ):
     for fn in gc.get_referrers(obj1):
         if isinstance(fn, types.FunctionType) or hasattr(fn, "__conform__"):
