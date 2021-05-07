@@ -4,9 +4,9 @@ from contextlib import contextmanager
 from itertools import count
 
 from .codetools import (
-    CodeChunk,
     CodeFile,
     CodeFileOperation,
+    LineDefinition,
     ModuleCode,
     splitlines,
 )
@@ -46,7 +46,7 @@ class Recoder:
     def _listen(self, event):
         if self._listening:
             if isinstance(event, CodeFileOperation):
-                if event.code in self.watched:
+                if event.defn in self.watched:
                     self.set_status("out-of-sync")
 
     @contextmanager
@@ -96,9 +96,9 @@ class Recoder:
                 changes,
                 additions,
                 deletions,
-            ) = self.codefile.code.correspond(cf.code).summary()
+            ) = self.codefile.root.correspond(cf.root).summary()
             seq = [*changes, *additions]
-            seq = [d for d in seq if not isinstance(d, CodeChunk)]
+            seq = [d for d in seq if not isinstance(d, LineDefinition)]
             if not all(_encompasses(culprit := d) for d in seq):
                 raise ValueError(
                     f"Recoder for {self.focus.name} cannot be used to define {culprit.name}"  # noqa: F821

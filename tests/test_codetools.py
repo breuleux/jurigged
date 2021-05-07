@@ -110,25 +110,25 @@ def jackfruit(tmod):
 def test_collect(apple_code):
     cat = {
         f"{k[0]}@{k[2]}" if isinstance(k, tuple) else k: obj
-        for k, v in catalogue(apple_code.code).items()
+        for k, v in catalogue(apple_code.root).items()
         if (obj := v.get_object()) is not None
     }
     assert cat == {
-        "FunctionCode@1": apple.crunch.__code__,
-        "FunctionCode@6": apple.breakfast.__code__,
-        "FunctionCode@23": apple.Orchard.cortland.__code__,
-        "ClassCode@13": apple.Orchard,
-        "FunctionCode@14": apple.Orchard.mcintosh.__code__,
-        "FunctionCode@18": apple.Orchard.honeycrisp.__func__.__code__,
-        "FunctionCode@29": apple.juggle.__code__,
-        "FunctionCode@36": apple.pomme.__code__,
-        "FunctionCode@37": apple.pomme().__code__,
-        "FunctionCode@45": apple.arbre.__code__,
-        "FunctionCode@46": apple.pommier.__code__,
-        "FunctionCode@52": apple.pommier.__wrapped__.__code__,
-        "ClassCode@57": apple.FakeApple,
-        "FunctionCode@58": apple.FakeApple.color.fget.__code__,
-        "FunctionCode@62": apple.FakeApple.color.fset.__code__,
+        "FunctionDefinition@1": apple.crunch.__code__,
+        "FunctionDefinition@6": apple.breakfast.__code__,
+        "FunctionDefinition@23": apple.Orchard.cortland.__code__,
+        "ClassDefinition@13": apple.Orchard,
+        "FunctionDefinition@14": apple.Orchard.mcintosh.__code__,
+        "FunctionDefinition@18": apple.Orchard.honeycrisp.__func__.__code__,
+        "FunctionDefinition@29": apple.juggle.__code__,
+        "FunctionDefinition@36": apple.pomme.__code__,
+        "FunctionDefinition@37": apple.pomme().__code__,
+        "FunctionDefinition@45": apple.arbre.__code__,
+        "FunctionDefinition@46": apple.pommier.__code__,
+        "FunctionDefinition@52": apple.pommier.__wrapped__.__code__,
+        "ClassDefinition@57": apple.FakeApple,
+        "FunctionDefinition@58": apple.FakeApple.color.fget.__code__,
+        "FunctionDefinition@62": apple.FakeApple.color.fset.__code__,
         "tests.snippets.apple.crunch": apple.crunch.__code__,
         "tests.snippets.apple.breakfast": apple.breakfast.__code__,
         "tests.snippets.apple.Orchard.cortland": apple.Orchard.cortland.__code__,
@@ -306,7 +306,7 @@ def test_commit_partial_2(dandelion):
     orig = dandelion.read()
     (plack_code,) = [
         x
-        for x in dandelion.main.code.walk()
+        for x in dandelion.main.root.walk()
         if x.get_object() is dandelion.module.plack.__code__
     ]
     dandelion.main.merge(
@@ -403,7 +403,7 @@ def test_bad_statement(iguana):
 def test_associate(ballon):
     glb = {"a": 2}
     ballon.main.associate(glb)
-    assert ballon.main.code.get_globals() is glb
+    assert ballon.main.root.get_globals() is glb
 
     with pytest.raises(TypeError):
         ballon.main.associate(1234)

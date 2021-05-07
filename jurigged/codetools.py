@@ -89,8 +89,8 @@ def get_info():
 
 @dataclass
 class Correspondence:
-    original: "Code"
-    new: "Code"
+    original: "Definition"
+    new: "Definition"
     corresponds: bool
     changed: bool = False
     child_correspondences: Optional[List["Correspondence"]] = None
@@ -141,11 +141,11 @@ class Correspondence:
 
 
 @dataclass
-class Code:
+class Definition:
     node: ast.AST
     name: str = None
     filename: str = None
-    parent: Optional["Code"] = None
+    parent: Optional["Definition"] = None
 
     # This is the original line number, used in the first lookup of the
     # code object. It does not need to remain in sync with updates to the
@@ -257,7 +257,7 @@ class Code:
 
 
 @dataclass
-class CodeChunk(Code):
+class LineDefinition(Definition):
     text: str = ""
 
     ##############
@@ -305,7 +305,7 @@ class CodeChunk(Code):
 
 
 @dataclass
-class CodeHeader(CodeChunk):
+class HeaderDefinition(LineDefinition):
 
     ##################
     # Correspondence #
@@ -316,9 +316,9 @@ class CodeHeader(CodeChunk):
 
 
 @dataclass
-class GroupedCode(Code):
+class GroupDefinition(Definition):
     variables: Variables = None
-    children: List[Code] = field(default=list)
+    children: List[Definition] = field(default=list)
 
     def __post_init__(self):
         super().__post_init__()
@@ -345,7 +345,7 @@ class GroupedCode(Code):
             [
                 child.codestring
                 for child in self.children
-                if isinstance(child, CodeHeader)
+                if isinstance(child, HeaderDefinition)
             ]
         )
 
@@ -383,7 +383,7 @@ class GroupedCode(Code):
         else:  # pragma: no cover
             # This doesn't seem to ever happen
             self.prepend(
-                CodeChunk(node=None, text=text, filename=self.filename)
+                LineDefinition(node=None, text=text, filename=self.filename)
             )
 
     def append_text(self, text):  # pragma: no cover
@@ -391,7 +391,9 @@ class GroupedCode(Code):
         if self.children:
             self.children[-1].append_text(text)
         else:
-            self.append(CodeChunk(node=None, text=text, filename=self.filename))
+            self.append(
+                LineDefinition(node=None, text=text, filename=self.filename)
+            )
 
     def append(self, *children, ensure_separation=False):
         for child in children:
@@ -400,7 +402,9 @@ class GroupedCode(Code):
                 and self.children
                 and not self.children[-1].well_separated(child)
             ):
-                ws = CodeChunk(node=None, text="\n", filename=self.filename)
+                ws = LineDefinition(
+                    node=None, text="\n", filename=self.filename
+                )
                 self.children.append(ws)
                 ws.set_parent(self)
             self.children.append(child)
@@ -447,8 +451,8 @@ class GroupedCode(Code):
 
             mergeable = not any(
                 (
-                    isinstance(corr.original, CodeHeader)
-                    or isinstance(corr.new, CodeHeader)
+                    isinstance(corr.original, HeaderDefinition)
+                    or isinstance(corr.new, HeaderDefinition)
                 )
                 and corr.changed
                 for corr in childcorr
@@ -594,7 +598,7 @@ class GroupedCode(Code):
 
 
 @dataclass
-class ModuleCode(GroupedCode):
+class ModuleCode(GroupDefinition):
     module: object = None
     globals: object = None
 
@@ -624,7 +628,7 @@ class ModuleCode(GroupedCode):
 
 
 @dataclass
-class ClassCode(GroupedCode):
+class ClassDefinition(GroupDefinition):
 
     ##############
     # Evaluation #
@@ -647,7 +651,7 @@ class ClassCode(GroupedCode):
 
 
 @dataclass
-class FunctionCode(GroupedCode):
+class FunctionDefinition(GroupDefinition):
 
     _codeobj: object = None
 
@@ -656,7 +660,7 @@ class FunctionCode(GroupedCode):
     ##############
 
     def stash(self, lineno=1, col_offset=0):
-        if not isinstance(self.parent, FunctionCode):
+        if not isinstance(self.parent, FunctionDefinition):
             co = self.get_object()
             if co and (delta := lineno - co.co_firstlineno):
                 self.recode(shift_lineno(co, delta), use_cache=True)
@@ -684,7 +688,7 @@ class FunctionCode(GroupedCode):
 
         # Synchronize changes in closure codes
         for closure in self.walk():
-            if isinstance(closure, FunctionCode) and (
+            if isinstance(closure, FunctionDefinition) and (
                 subcode := subcodes.get(closure.codepath(), None)
             ):
                 co = closure.get_object()
@@ -708,7 +712,7 @@ class FunctionCode(GroupedCode):
             # to sync their code objects.
             for ccorr in corr.walk():
                 if (
-                    isinstance(ccorr.original, FunctionCode)
+                    isinstance(ccorr.original, FunctionDefinition)
                     and ccorr.new is not None
                 ):
                     ccorr.new._codeobj = ccorr.original._codeobj
@@ -898,7 +902,7 @@ def delta(node1, node2):
     )
 
 
-def distribute(between, defn1, defn2, cls=CodeChunk):
+def distribute(between, defn1, defn2, cls=LineDefinition):
     left, middle, right = analyze_split(between)
     rval = ""
     if left:
@@ -934,7 +938,7 @@ def collect_definitions(self, nodes: list):
 def collect_definitions(self, node: (ast.FunctionDef, ast.AsyncFunctionDef)):
     info = get_info()
     defns = self(node.body)
-    cg = FunctionCode(
+    fndefn = FunctionDefinition(
         name=node.name,
         node=node,
         children=defns,
@@ -945,28 +949,28 @@ def collect_definitions(self, node: (ast.FunctionDef, ast.AsyncFunctionDef)):
 
     deco0 = _collapse_to_beginning(node.extent)
     between = delta(deco0, node)
-    prelude += distribute(between, None, None, cls=CodeHeader)
+    prelude += distribute(between, None, None, cls=HeaderDefinition)
 
     fnstart = _collapse_to_beginning(node)
     between = delta(fnstart, node.body[0].extent)
     prelude += distribute(between, None, defns[0])
 
-    cg.prepend(*prelude)
+    fndefn.prepend(*prelude)
 
     fnend = _collapse_to_end(node)
     between = delta(node.body[-1].extent, fnend)
-    cg.append(*distribute(between, defns[-1], None))
+    fndefn.append(*distribute(between, defns[-1], None))
 
-    cg.groundline = deco0.lineno
+    fndefn.groundline = deco0.lineno
 
-    return cg
+    return fndefn
 
 
 @ovld
 def collect_definitions(self, node: ast.ClassDef):
     info = get_info()
     defns = self(node.body)
-    cg = ClassCode(
+    clsdefn = ClassDefinition(
         name=node.name,
         node=node,
         children=defns,
@@ -977,15 +981,15 @@ def collect_definitions(self, node: ast.ClassDef):
 
     deco0 = _collapse_to_beginning(node.extent)
     between = delta(deco0, node.body[0].extent)
-    prelude += distribute(between, None, defns[0], cls=CodeHeader)
+    prelude += distribute(between, None, defns[0], cls=HeaderDefinition)
 
-    cg.prepend(*prelude)
+    clsdefn.prepend(*prelude)
 
     fnend = _collapse_to_end(node)
     between = delta(node.body[-1].extent, fnend)
-    cg.append(*distribute(between, defns[-1], None))
+    clsdefn.append(*distribute(between, defns[-1], None))
 
-    return cg
+    return clsdefn
 
 
 @ovld
@@ -1013,7 +1017,7 @@ def collect_definitions(self, node: ast.Module):
 
 @ovld
 def collect_definitions(self, node: ast.stmt):
-    return CodeChunk(node=node, text=get_info().get_segment(node))
+    return LineDefinition(node=node, text=get_info().get_segment(node))
 
 
 class CodeFile:
@@ -1037,21 +1041,21 @@ class CodeFile:
             varinfo=varinfo,
         ):
             fill_real_extent(tree)
-            self.code = collect_definitions(tree)
-        self.code.stash()
+            self.root = collect_definitions(tree)
+        self.root.stash()
         self.dirty = False
 
     @property
     def module(self):
-        return self.code.module
+        return self.root.module
 
     def associate(self, obj):
         if isinstance(obj, ModuleType):
-            self.code.module = obj
-            self.code.globals = vars(obj)
+            self.root.module = obj
+            self.root.globals = vars(obj)
         elif isinstance(obj, dict):
-            self.code.module = None
-            self.code.globals = obj
+            self.root.module = None
+            self.root.globals = obj
         else:
             raise TypeError("associate expects a dict or module")
 
@@ -1086,10 +1090,10 @@ class CodeFile:
             else:
                 return True
 
-        corr = self.code.correspond(other.code)
+        corr = self.root.correspond(other.root)
         if corr.changed:
             self.dirty = True
-        self.code.apply_correspondence(corr, order=order, controller=controller)
+        self.root.apply_correspondence(corr, order=order, controller=controller)
         return corr.summary()
 
     def commit(self, check_stale=True):
@@ -1099,47 +1103,47 @@ class CodeFile:
             raise StaleException(
                 f"Cannot commit changes to {self.filename} because the file was changed."
             )
-        new_source = self.code.reconstruct()
+        new_source = self.root.reconstruct()
         if not new_source.endswith("\n"):
             new_source += "\n"
         with open(self.filename, "w") as f:
             f.write(new_source)
-        self.code.stash()
+        self.root.stash()
         self.saved = new_source
         self.dirty = False
 
     def refresh(self):
         new_source = self.read_source()
-        if new_source != self.code.codestring or self.dirty:
+        if new_source != self.root.codestring or self.dirty:
             cf = CodeFile(
                 self.filename, source=new_source, module_name=self.module_name
             )
             self.merge(cf)
-            self.code.stash()
+            self.root.stash()
 
 
 @dataclass
 class CodeFileOperation:
     codefile: CodeFile
-    code: Code
+    defn: Definition
 
 
 @dataclass
 class UpdateOperation(CodeFileOperation):
     def __str__(self):
-        return f"Update {self.code.dotpath()} @L{self.code.stashed.lineno}"
+        return f"Update {self.defn.dotpath()} @L{self.defn.stashed.lineno}"
 
 
 @dataclass
 class AddOperation(CodeFileOperation):
     def __str__(self):
-        if isinstance(self.code, CodeChunk):
-            return f"Run {self.code.parent.dotpath()} @L{self.code.stashed.lineno}: {self.code.text}"
+        if isinstance(self.defn, LineDefinition):
+            return f"Run {self.defn.parent.dotpath()} @L{self.defn.stashed.lineno}: {self.defn.text}"
         else:
-            return f"Add {self.code.dotpath()} @L{self.code.stashed.lineno}"
+            return f"Add {self.defn.dotpath()} @L{self.defn.stashed.lineno}"
 
 
 @dataclass
 class DeleteOperation(CodeFileOperation):
     def __str__(self):
-        return f"Delete {self.code.dotpath()} @L{self.code.stashed.lineno}"
+        return f"Delete {self.defn.dotpath()} @L{self.defn.stashed.lineno}"

@@ -7,7 +7,7 @@ from types import CodeType, FunctionType, ModuleType
 from _frozen_importlib_external import SourceFileLoader
 from ovld import OvldMC, ovld
 
-from .codetools import CodeFile, FunctionCode
+from .codetools import CodeFile, FunctionDefinition
 from .utils import EventSource, glob_filter
 
 log = logging.getLogger(__name__)
@@ -88,9 +88,9 @@ class Registry(metaclass=OvldMC):
         cf = self.get(filename)
         if cf is None:
             return None, None
-        for entry in cf.code.walk():
+        for entry in cf.root.walk():
             if (
-                isinstance(entry, FunctionCode)
+                isinstance(entry, FunctionDefinition)
                 and entry.node is not None
                 and (
                     (
@@ -132,7 +132,7 @@ class Registry(metaclass=OvldMC):
     def find(self, module: ModuleType):
         self.prepare(module.__name__, module.__file__)
         cf = self.get(module.__file__)
-        return cf, cf.code
+        return cf, cf.root
 
     @ovld
     def find(self, fn: FunctionType):
@@ -150,7 +150,7 @@ class Registry(metaclass=OvldMC):
         _, filename = self.prepare(module_name=cls.__module__)
         cf = self.get(filename)
         key = f"{cls.__module__}.{cls.__qualname__}"
-        for entry in cf.code.walk():
+        for entry in cf.root.walk():
             if entry.dotpath() == key:
                 return cf, entry
         else:
