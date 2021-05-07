@@ -102,6 +102,11 @@ def iguana(tmod):
     return CodeCollection(tmod, "iguana")
 
 
+@pytest.fixture
+def jackfruit(tmod):
+    return CodeCollection(tmod, "jackfruit")
+
+
 def test_collect(apple_code):
     cat = {
         f"{k[0]}@{k[2]}" if isinstance(k, tuple) else k: set(v.get_objects())
@@ -398,3 +403,19 @@ def test_set_globals(ballon):
     glb = {"a": 2}
     ballon.main.code.set_globals(glb)
     assert ballon.main.code.get_globals() is glb
+
+
+def test_custom_conform(jackfruit):
+    assert jackfruit.module.jack1(3, 4) == 12
+    assert jackfruit.module.jack2(3, 4) == 12
+
+    assert jackfruit.module.jack1.__code__.co_name == "jack1"
+    assert jackfruit.module.jack2.__code__.co_name == "jack2"
+
+    jackfruit.main.merge(jackfruit.cf.mod)
+
+    assert jackfruit.module.jack1(3, 4) == 7
+    assert jackfruit.module.jack2(3, 4) == 7
+
+    assert jackfruit.module.jack1.__code__.co_name == "jack1"
+    assert jackfruit.module.jack2.__code__.co_name == "jack2"

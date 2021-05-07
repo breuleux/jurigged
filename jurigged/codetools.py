@@ -696,6 +696,8 @@ class FunctionCode(GroupedCode):
     def stash(self, lineno=1, col_offset=0):
         stashed = super().stash(lineno, col_offset)
         for obj in self.get_objects():
+            if not isinstance(obj, FunctionType):
+                continue
             # Update the firstlineno in the functions so that it matches
             # the position in the written file (updates to the functions
             # above them might have pushed them down)

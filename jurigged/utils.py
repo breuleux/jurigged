@@ -81,7 +81,7 @@ def conform(
     self, obj1: types.CodeType, obj2: (types.CodeType, types.FunctionType)
 ):
     for fn in gc.get_referrers(obj1):
-        if isinstance(fn, types.FunctionType):
+        if isinstance(fn, types.FunctionType) or hasattr(fn, "__conform__"):
             self(fn, obj2)
 
 
