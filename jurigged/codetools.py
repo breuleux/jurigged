@@ -716,6 +716,9 @@ class FunctionCode(GroupedCode):
     def apply_correspondence(self, corr, order, controller):
         assert corr.corresponds and corr.changed
 
+        if not controller("pre-update", corr):
+            return
+
         # Reevaluate this function
         glb = self.get_globals()
         new_obj = self.reevaluate(corr.new.node, glb)
@@ -739,7 +742,6 @@ class FunctionCode(GroupedCode):
             if (
                 isinstance(ccorr.original, FunctionCode)
                 and ccorr.new is not None
-                and controller("pre-update", ccorr)
                 and (subcode := subcodes.get(ccorr.original.codepath(), None))
             ):
                 conform(ccorr.original.get_codeobj(), subcode)
@@ -748,10 +750,10 @@ class FunctionCode(GroupedCode):
                 # replace it by the new, so if the reevaluation succeeds
                 # it is important to sync their objects.
                 ccorr.new._codeobj = ccorr.original._codeobj
-                controller("post-update", ccorr)
 
         self.children = []
         self.append(*corr.new.children)
+        controller("post-update", corr)
 
     ##############
     # Evaluation #
@@ -771,7 +773,7 @@ class FunctionCode(GroupedCode):
         rval = set()
         if (code := self.get_codeobj()) is not None:
             for fn in gc.get_referrers(code):
-                if isinstance(fn, FunctionType):
+                if isinstance(fn, FunctionType) or hasattr(fn, "__conform__"):
                     rval.add(fn)
         return rval
 
