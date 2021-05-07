@@ -4,8 +4,8 @@ from types import SimpleNamespace as NS
 
 import pytest
 
-from jurigged.codetools import CodeFile, StaleException
 from jurigged.codedb import db
+from jurigged.codetools import CodeFile, StaleException
 
 from .common import TemporaryModule, catalogue
 from .snippets import apple
