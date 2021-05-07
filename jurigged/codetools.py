@@ -11,9 +11,9 @@ from typing import List, Optional
 
 from ovld import ovld
 
-from .codedb import db
+from .codedb import ConformException, conform, db
 from .parse import Variables, variables
-from .utils import ConformException, EventSource, conform, shift_lineno
+from .utils import EventSource, shift_lineno
 
 current_info = ContextVar("current_info", default=None)
 
