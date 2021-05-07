@@ -1,19 +1,20 @@
 import argparse
 import code
+import importlib
 import logging
 import os
-import runpy
 import sys
 import threading
 import traceback
 from dataclasses import dataclass
+from types import ModuleType
 
 import blessed
 from ovld import ovld
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
-from . import codetools
+from . import codetools, runpy
 from .register import registry
 from .utils import glob_filter
 from .version import version
@@ -152,12 +153,53 @@ def watch(
     return watcher
 
 
-def cli():  # pragma: no cover
+def find_runner(opts, pattern):
+    if opts.module:
+        if opts.script is not None:
+            opts.rest.insert(0, opts.script)
+        sys.argv[1:] = opts.rest
+
+        if ":" in opts.module:
+            module_name, func = opts.module.split(":", 1)
+            mod = importlib.import_module(module_name)
+            return mod, getattr(mod, func)
+
+        else:
+            _, spec, code = runpy._get_module_details(opts.module)
+            if pattern(spec.origin):
+                registry.prepare("__main__", spec.origin)
+            mod = ModuleType("__main__")
+
+            def run():
+                runpy.run_module(opts.module, module_object=mod)
+
+            return mod, run
+
+    elif opts.script:
+        path = os.path.abspath(opts.script)
+        if pattern(path):
+            # It won't auto-trigger through runpy, probably some idiosyncracy of
+            # module resolution
+            registry.prepare("__main__", path)
+        sys.argv[1:] = opts.rest
+        mod = ModuleType("__main__")
+
+        def run():
+            runpy.run_path(path, module_object=mod)
+
+        return mod, run
+
+    else:
+        mod = ModuleType("__main__")
+        return mod, None
+
+
+def cli():
     parser = argparse.ArgumentParser(
         description="Run a Python script so that it is live-editable."
     )
     parser.add_argument(
-        "path", metavar="PATH", help="Path to the script to run", nargs="?"
+        "script", metavar="SCRIPT", help="Path to the script to run", nargs="?"
     )
     parser.add_argument(
         "--interactive",
@@ -213,38 +255,15 @@ def cli():  # pragma: no cover
         print(version)
         sys.exit()
 
-    elif opts.module:
-        watcher = watch(**watch_args)
-        new_args = list(opts.rest)
-        if opts.path is not None:
-            new_args.insert(0, opts.path)
-        sys.argv[1:] = new_args
+    mod, run = find_runner(opts, pattern)
+    watch(**watch_args)
 
-        if ":" in opts.module:
-            module, func = opts.module.split(":", 1)
-            __import__(module, fromlist=[])
-            module_obj = sys.modules[module]
-            getattr(module_obj, func)()
-            glb = vars(module_obj)
-        else:
-            glb = runpy.run_module(opts.module, run_name="__main__")
-
-    elif opts.path:
-        path = os.path.abspath(opts.path)
-        watcher = watch(**watch_args, autostart=False)
-        if pattern(path):
-            # It won't auto-trigger through runpy, probably some idiosyncracy of
-            # module resolution
-            watcher.registry.prepare("__main__", path)
-        watcher.start()
-        sys.argv[1:] = opts.rest
-        glb = runpy.run_path(path, run_name="__main__")
-
-    else:
-        opts.interactive = True
-        watch(**watch_args)
-        glb = {}
+    if run is None:
         banner = None
+        opts.interactive = True
+    else:
+        banner = ""
+        run()
 
     if opts.interactive:
-        code.interact(banner=banner, local=glb, exitmsg="")
+        code.interact(banner=banner, local=vars(mod), exitmsg="")
