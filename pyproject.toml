@@ -39,6 +39,7 @@ skip = "tests/snippets/"
 [tool.coverage.run]
 omit = [
     "jurigged/__main__.py",
+    "jurigged/runpy.py",
     "tests/*",
 ]
 

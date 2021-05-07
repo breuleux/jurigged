@@ -153,7 +153,7 @@ def watch(
     return watcher
 
 
-def find_runner(opts, pattern):
+def find_runner(opts, pattern):  # pragma: no cover
     if opts.module:
         if opts.script is not None:
             opts.rest.insert(0, opts.script)
@@ -194,7 +194,7 @@ def find_runner(opts, pattern):
         return mod, None
 
 
-def cli():
+def cli():  # pragma: no cover
     parser = argparse.ArgumentParser(
         description="Run a Python script so that it is live-editable."
     )
