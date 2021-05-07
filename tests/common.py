@@ -88,6 +88,16 @@ class TemporaryModule:
         return __import__(mname)
 
 
+def catalogue(root):
+    cat = {}
+    for entry in root.walk():
+        if entry.node and entry.node.extent:
+            typ = type(entry).__name__
+            cat[typ, entry.filename, entry.stashed.lineno] = entry
+            cat[entry.dotpath()] = entry
+    return cat
+
+
 def _blah(x, y):
     def inner():
         return x + y

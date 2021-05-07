@@ -7,8 +7,8 @@ from types import CodeType, FunctionType, ModuleType
 from _frozen_importlib_external import SourceFileLoader
 from ovld import OvldMC, ovld
 
-from .codetools import CodeFile
-from .utils import EventSource, glob_filter, locate
+from .codetools import CodeFile, FunctionCode
+from .utils import EventSource, glob_filter
 
 log = logging.getLogger(__name__)
 
@@ -88,9 +88,24 @@ class Registry(metaclass=OvldMC):
         cf = self.get(filename)
         if cf is None:
             return None, None
-        cat = cf.code.catalogue()
-        defn = cat.get(("FunctionCode", filename, lineno), None)
-        return cf, defn
+        for entry in cf.code.walk():
+            if (
+                isinstance(entry, FunctionCode)
+                and entry.node is not None
+                and (
+                    (
+                        entry.stashed.lineno == lineno
+                        and entry.stashed.filename == filename
+                    )
+                    or (
+                        entry.node.extent.lineno == lineno
+                        and entry.node.extent.filename == filename
+                    )
+                )
+            ):
+                return cf, entry
+        else:
+            return cf, None
 
     def auto_register(self, filter=glob_filter("./*.py")):
         def prep(module_name, filename):
@@ -134,7 +149,12 @@ class Registry(metaclass=OvldMC):
     def find(self, cls: type):
         _, filename = self.prepare(module_name=cls.__module__)
         cf = self.get(filename)
-        return cf, locate(cls, cf.code.catalogue())
+        key = f"{cls.__module__}.{cls.__qualname__}"
+        for entry in cf.code.walk():
+            if entry.dotpath() == key:
+                return cf, entry
+        else:
+            return cf, None
 
 
 registry = Registry()

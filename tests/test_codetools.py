@@ -5,9 +5,8 @@ from types import SimpleNamespace as NS
 import pytest
 
 from jurigged.codetools import CodeFile, StaleException
-from jurigged.utils import locate
 
-from .common import TemporaryModule
+from .common import TemporaryModule, catalogue
 from .snippets import apple
 
 
@@ -109,12 +108,11 @@ def jackfruit(tmod):
 
 def test_collect(apple_code):
     cat = {
-        f"{k[0]}@{k[2]}" if isinstance(k, tuple) else k: set(v.get_objects())
-        for k, v in apple_code.code.catalogue().items()
-        if set(v.get_objects())
+        f"{k[0]}@{k[2]}" if isinstance(k, tuple) else k: objs
+        for k, v in catalogue(apple_code.code).items()
+        if (objs := set(v.get_objects()))
     }
     assert cat == {
-        "ModuleCode@1": {apple},
         "FunctionCode@1": {apple.crunch},
         "FunctionCode@6": {apple.breakfast},
         "FunctionCode@23": {apple.Orchard.cortland},
@@ -129,7 +127,6 @@ def test_collect(apple_code):
         "ClassCode@57": {apple.FakeApple},
         "FunctionCode@58": {apple.FakeApple.color.fget},
         "FunctionCode@62": {apple.FakeApple.color.fset},
-        "tests.snippets.apple": {apple},
         "tests.snippets.apple.crunch": {apple.crunch},
         "tests.snippets.apple.breakfast": {apple.breakfast},
         "tests.snippets.apple.Orchard.cortland": {apple.Orchard.cortland},
@@ -306,11 +303,14 @@ def test_commit_partial(dandelion):
 
 def test_commit_partial_2(dandelion):
     orig = dandelion.read()
+    (plack_code,) = [
+        x
+        for x in dandelion.main.code.walk()
+        if dandelion.module.plack in x.get_objects()
+    ]
     dandelion.main.merge(
         dandelion.cf.repl,
-        allow_deletions=[
-            locate(dandelion.module.plack, dandelion.main.code.catalogue())
-        ],
+        allow_deletions=[plack_code],
     )
     assert dandelion.read() == orig
     dandelion.main.commit()

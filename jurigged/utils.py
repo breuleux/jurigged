@@ -5,38 +5,6 @@ import types
 
 from ovld import ovld
 
-##########
-# Locate #
-##########
-
-
-@ovld
-def locate(fn: types.FunctionType, catalog):
-    return locate(fn.__code__, catalog)
-
-
-@ovld
-def locate(code: types.CodeType, catalog):
-    key = ("FunctionCode", code.co_filename, code.co_firstlineno)
-    return catalog.get(key, None)
-
-
-@ovld
-def locate(typ: type, catalog):
-    key = f"{typ.__module__}.{typ.__qualname__}"
-    return catalog.get(key, None)
-
-
-@ovld
-def locate(mod: types.ModuleType, catalog):
-    return catalog.get(mod.__name__, None)
-
-
-@ovld
-def locate(obj: object, catalog):  # pragma: no cover
-    return None
-
-
 ###########
 # Conform #
 ###########

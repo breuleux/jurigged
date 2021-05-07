@@ -184,9 +184,6 @@ class Code:
             for i, x in enumerate(reversed(chain))
         )
 
-    def module_name(self):
-        return self.parent and self.parent.module_name()
-
     def get_globals(self):
         return self.parent and self.parent.get_globals()
 
@@ -237,18 +234,6 @@ class Code:
     @abstractmethod
     def apply_correspondence(self, corr, order, controller):
         pass
-
-    ###############
-    # Cataloguing #
-    ###############
-
-    def catalogue(self, cat=None):
-        cat = {} if cat is None else cat
-        if self.node is not None:
-            for ext in [self.node.extent, self.stashed]:
-                if ext is not None:
-                    cat[(type(self).__name__, ext.filename, ext.lineno)] = self
-        return cat
 
     ##############
     # Evaluation #
@@ -592,20 +577,6 @@ class GroupedCode(Code):
 
             controller("post-update", corr)
 
-    ###############
-    # Cataloguing #
-    ###############
-
-    def catalogue(self, cat=None):
-        if cat is None:
-            cat = {}
-        for child in self.children:
-            child.catalogue(cat)
-        super().catalogue(cat)
-        if (pth := self.dotpath()) is not None:
-            cat[pth] = self
-        return cat
-
     ##############
     # Evaluation #
     ##############
@@ -635,9 +606,6 @@ class ModuleCode(GroupedCode):
     #############
     # Hierarchy #
     #############
-
-    def module_name(self):
-        return self.name
 
     def set_globals(self, glb):
         self.globals = glb
@@ -775,7 +743,7 @@ class FunctionCode(GroupedCode):
         if self._codeobj is None:
             pth = (*self.codepath(), self.groundline)
             if pth in db.codes:
-                self._codeobj = code = db.codes[pth]
+                self._codeobj = db.codes[pth]
         return self._codeobj
 
     def get_objects(self):
