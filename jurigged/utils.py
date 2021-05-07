@@ -1,9 +1,10 @@
 import fnmatch
-import gc
 import os
 import types
 
 from ovld import ovld
+
+from .codedb import db
 
 ###########
 # Conform #
@@ -15,22 +16,22 @@ class ConformException(Exception):
 
 
 @ovld.dispatch
-def conform(self, obj1, obj2):
+def conform(self, obj1, obj2, **kwargs):
     if hasattr(obj1, "__conform__"):
         obj1.__conform__(obj2)
     else:
-        self.resolve(obj1, obj2)(obj1, obj2)
+        self.resolve(obj1, obj2)(obj1, obj2, **kwargs)
 
 
 @ovld
-def conform(self, obj1: types.FunctionType, obj2: types.FunctionType):
-    self(obj1, obj2.__code__)
+def conform(self, obj1: types.FunctionType, obj2: types.FunctionType, **kwargs):
+    self(obj1, obj2.__code__, **kwargs)
     obj1.__defaults__ = obj2.__defaults__
     obj1.__kwdefaults__ = obj2.__kwdefaults__
 
 
 @ovld
-def conform(self, obj1: types.FunctionType, obj2: types.CodeType):
+def conform(self, obj1: types.FunctionType, obj2: types.CodeType, **kwargs):
     fv1 = obj1.__code__.co_freevars
     fv2 = obj2.co_freevars
     if fv1 != fv2:
@@ -41,7 +42,7 @@ def conform(self, obj1: types.FunctionType, obj2: types.CodeType):
         if ("__class__" in (fv1 or ())) ^ ("__class__" in (fv2 or ())):
             msg += " Note: The use of `super` entails the `__class__` free variable."
         raise ConformException(msg)
-    obj1.__code__ = obj2
+    db.replace_code(obj1, obj2)
 
 
 @ovld
@@ -49,14 +50,14 @@ def conform(
     self,
     obj1: types.CodeType,
     obj2: (types.CodeType, types.FunctionType, type(None)),
+    **kwargs,
 ):
-    for fn in gc.get_referrers(obj1):
-        if isinstance(fn, types.FunctionType) or hasattr(fn, "__conform__"):
-            self(fn, obj2)
+    for fn in db.get_functions(obj1, **kwargs):
+        self(fn, obj2, **kwargs)
 
 
 @ovld
-def conform(self, obj1, obj2):
+def conform(self, obj1, obj2, **kwargs):
     pass
 
 

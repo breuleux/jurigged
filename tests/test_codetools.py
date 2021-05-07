@@ -5,6 +5,7 @@ from types import SimpleNamespace as NS
 import pytest
 
 from jurigged.codetools import CodeFile, StaleException
+from jurigged.codedb import db
 
 from .common import TemporaryModule, catalogue
 from .snippets import apple
@@ -422,3 +423,7 @@ def test_custom_conform(jackfruit):
 
     assert jackfruit.module.jack1.__code__.co_name == "jack1"
     assert jackfruit.module.jack2.__code__.co_name == "jack2"
+
+    # Trigger a special path in collect_all
+    db.collect_all()
+    assert len(db.functions[jackfruit.module.jack1.__code__]) == 2

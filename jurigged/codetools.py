@@ -1,5 +1,4 @@
 import ast
-import gc
 import os
 import re
 from abc import abstractmethod
@@ -7,7 +6,7 @@ from collections import Counter
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace as dc_replace
-from types import CodeType, FunctionType, ModuleType
+from types import CodeType, ModuleType
 from typing import List, Optional
 
 from ovld import ovld
@@ -660,7 +659,7 @@ class FunctionCode(GroupedCode):
         if not isinstance(self.parent, FunctionCode):
             co = self.get_object()
             if co and (delta := lineno - co.co_firstlineno):
-                self.recode(shift_lineno(co, delta))
+                self.recode(shift_lineno(co, delta), use_cache=True)
 
         return super().stash(lineno, col_offset)
 
@@ -668,7 +667,7 @@ class FunctionCode(GroupedCode):
     # Correspondence #
     ##################
 
-    def recode(self, new_code, recode_current=True):
+    def recode(self, new_code, recode_current=True, use_cache=False):
         # Gather the code objects of all closures into subcodes
         subcodes = {}
 
@@ -690,7 +689,7 @@ class FunctionCode(GroupedCode):
             ):
                 co = closure.get_object()
                 if co is not subcode:
-                    conform(co, subcode)
+                    conform(co, subcode, use_cache=use_cache)
                     closure._codeobj = subcode
 
     def apply_correspondence(self, corr, order, controller):
@@ -1054,7 +1053,7 @@ class CodeFile:
             self.code.module = None
             self.code.globals = obj
         else:
-            raise TypeError(f"associate expects a dict or module")
+            raise TypeError("associate expects a dict or module")
 
     def read_source(self):
         source = open(self.filename).read()
