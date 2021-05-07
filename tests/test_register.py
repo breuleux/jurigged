@@ -1,5 +1,6 @@
 import os
 import sys
+import types
 
 import pytest
 
@@ -135,10 +136,10 @@ def test_registry_find(tmod):
     assert cf.filename == common.__file__
     assert defn.get_object() is _blah.__code__
 
-    # # Trigger the cached entry for filename -> module_name
-    # cf, defn = reg.find(glob_filter.__code__)
-    # assert "jurigged/utils.py" in cf.filename
-    # assert _obj(defn) is glob_filter
+    # Trigger the cached entry for filename -> module_name
+    cf, defn = reg.find(glob_filter.__code__)
+    assert "jurigged/utils.py" in cf.filename
+    assert defn.get_object() is glob_filter.__code__
 
     cf, defn = reg.find(_blah(3, 4))
     assert cf.filename == common.__file__
@@ -150,6 +151,21 @@ def test_registry_find(tmod):
     assert reg.get_at("inexistent", 3) == (None, None)
 
     sniff.uninstall()
+
+
+def test_registry_cannot_find(tmod):
+    reg = Registry()
+    typ = type("Generated", (object,), {})
+    cf, defn = reg.find(typ)
+    assert cf.filename == __file__
+    assert defn is None
+
+    fn = types.FunctionType(
+        _blah.__code__.replace(co_name="xxx", co_firstlineno=10000), {}
+    )
+    cf, defn = reg.find(fn)
+    assert cf.filename == common.__file__
+    assert defn is None
 
 
 def test_registry_import_error(tmod):
