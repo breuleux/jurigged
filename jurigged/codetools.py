@@ -7,7 +7,7 @@ from collections import Counter
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace as dc_replace
-from types import CodeType, FunctionType
+from types import CodeType, FunctionType, ModuleType
 from typing import List, Optional
 
 from ovld import ovld
@@ -596,6 +596,7 @@ class GroupedCode(Code):
 
 @dataclass
 class ModuleCode(GroupedCode):
+    module: object = None
     globals: object = None
 
     def __post_init__(self):
@@ -606,14 +607,8 @@ class ModuleCode(GroupedCode):
     # Hierarchy #
     #############
 
-    def set_globals(self, glb):
-        self.globals = glb
-
     def get_globals(self):
-        mod = self.globals
-        if not isinstance(mod, dict):
-            mod = vars(mod)
-        return mod
+        return self.globals
 
     def get_object(self):
         return self.globals
@@ -626,7 +621,7 @@ class ModuleCode(GroupedCode):
         return child.evaluate(self.get_globals(), None)
 
     def delete_property(self, prop):
-        delattr(self.globals, prop)
+        del self.globals[prop]
 
 
 @dataclass
@@ -1049,10 +1044,17 @@ class CodeFile:
 
     @property
     def module(self):
-        return self.code.get_object()
+        return self.code.module
 
     def associate(self, obj):
-        self.code.set_globals(obj)
+        if isinstance(obj, ModuleType):
+            self.code.module = obj
+            self.code.globals = vars(obj)
+        elif isinstance(obj, dict):
+            self.code.module = None
+            self.code.globals = obj
+        else:
+            raise TypeError(f"associate expects a dict or module")
 
     def read_source(self):
         source = open(self.filename).read()

@@ -399,10 +399,13 @@ def test_bad_statement(iguana):
     assert iguana.module.lizard(3) == "ssssss"
 
 
-def test_set_globals(ballon):
+def test_associate(ballon):
     glb = {"a": 2}
-    ballon.main.code.set_globals(glb)
+    ballon.main.associate(glb)
     assert ballon.main.code.get_globals() is glb
+
+    with pytest.raises(TypeError):
+        ballon.main.associate(1234)
 
 
 def test_custom_conform(jackfruit):
