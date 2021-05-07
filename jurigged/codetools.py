@@ -14,7 +14,7 @@ from ovld import ovld
 
 from .codedb import db
 from .parse import Variables, variables
-from .utils import ConformException, EventSource, conform
+from .utils import ConformException, EventSource, conform, shift_lineno
 
 current_info = ContextVar("current_info", default=None)
 
@@ -193,6 +193,9 @@ class Code:
     def get_objects(self):
         return set()
 
+    def walk(self):
+        yield self
+
     ##############
     # Management #
     ##############
@@ -361,6 +364,11 @@ class GroupedCode(Code):
                 if isinstance(child, CodeHeader)
             ]
         )
+
+    def walk(self):
+        yield self
+        for child in self.children:
+            yield from child.walk()
 
     ##############
     # Management #
@@ -694,38 +702,18 @@ class FunctionCode(GroupedCode):
     ##############
 
     def stash(self, lineno=1, col_offset=0):
-        stashed = super().stash(lineno, col_offset)
-        for obj in self.get_objects():
-            if not isinstance(obj, FunctionType):
-                continue
-            # Update the firstlineno in the functions so that it matches
-            # the position in the written file (updates to the functions
-            # above them might have pushed them down)
-            co = obj.__code__
-            if co.co_firstlineno != lineno:
-                try:
-                    obj.__code__ = co.replace(co_firstlineno=lineno)
-                    self._codeobj = obj.__code__
-                except Exception:  # pragma: no cover
-                    # It's not a major issue if it fails
-                    pass
-        return stashed
+        if not isinstance(self.parent, FunctionCode):
+            co = self.get_codeobj()
+            if co and (delta := lineno - co.co_firstlineno):
+                self.recode(shift_lineno(co, delta))
+
+        return super().stash(lineno, col_offset)
 
     ##################
     # Correspondence #
     ##################
 
-    def apply_correspondence(self, corr, order, controller):
-        assert corr.corresponds and corr.changed
-
-        if not controller("pre-update", corr):
-            return
-
-        # Reevaluate this function
-        glb = self.get_globals()
-        new_obj = self.reevaluate(corr.new.node, glb)
-        new_code = new_obj.__code__
-
+    def recode(self, new_code, recode_current=True):
         # Gather the code objects of all closures into subcodes
         subcodes = {}
 
@@ -737,25 +725,44 @@ class FunctionCode(GroupedCode):
 
         here = self.codepath()
         _fill_subcodes(new_code, here)
-        del subcodes[here]
+        if not recode_current:
+            del subcodes[here]
 
         # Synchronize changes in closure codes
-        for ccorr in corr.walk():
-            if (
-                isinstance(ccorr.original, FunctionCode)
-                and ccorr.new is not None
-                and (subcode := subcodes.get(ccorr.original.codepath(), None))
+        for closure in self.walk():
+            if isinstance(closure, FunctionCode) and (
+                subcode := subcodes.get(closure.codepath(), None)
             ):
-                conform(ccorr.original.get_codeobj(), subcode)
-                ccorr.original._codeobj = subcode
-                # Note that we will throw out the original ccorr and
-                # replace it by the new, so if the reevaluation succeeds
-                # it is important to sync their objects.
-                ccorr.new._codeobj = ccorr.original._codeobj
+                co = closure.get_codeobj()
+                if co is not subcode:
+                    conform(co, subcode)
+                    closure._codeobj = subcode
 
-        self.children = []
-        self.append(*corr.new.children)
-        controller("post-update", corr)
+    def apply_correspondence(self, corr, order, controller):
+        assert corr.corresponds and corr.changed
+
+        if controller("pre-update", corr):
+            # Reevaluate this function
+            glb = self.get_globals()
+            new_obj = self.reevaluate(corr.new.node, glb)
+            new_code = new_obj.__code__
+
+            self.recode(new_code, recode_current=False)
+
+            # We will throw out all original child correspondences and replace
+            # them by the new, so if the reevaluation succeeds it is important
+            # to sync their code objects.
+            for ccorr in corr.walk():
+                if (
+                    isinstance(ccorr.original, FunctionCode)
+                    and ccorr.new is not None
+                ):
+                    ccorr.new._codeobj = ccorr.original._codeobj
+
+            self.children = []
+            self.append(*corr.new.children)
+            self._codeobj = new_code
+            controller("post-update", corr)
 
     ##############
     # Evaluation #

@@ -129,3 +129,13 @@ def glob_filter(pattern):
         return fnmatch.fnmatch(filename, pattern)
 
     return matcher
+
+
+def shift_lineno(co, delta):
+    if isinstance(co, types.CodeType):
+        return co.replace(
+            co_firstlineno=co.co_firstlineno + delta,
+            co_consts=tuple(shift_lineno(ct, delta) for ct in co.co_consts),
+        )
+    else:
+        return co
