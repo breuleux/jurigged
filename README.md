@@ -145,20 +145,55 @@ Jurigged works in a surprisingly large number of situations, but there are sever
 * **Updating the code of a decorator or a closure may or may not work.** Jurigged will do its best, but it is possible that some closures will be updated but not others.
 * **Decorators that look at/tweak function code will probably not update properly.**
   * Wrappers that try to compile/JIT Python code won't know about jurigged and won't be able to redo their work for the new code.
-  * They can be made to work if they set the (jurigged-specific) `__conform__` attribute on the old function. `__conform__` takes a reference to the function that should replace it, or `None` if it is to be deleted.
+  * They can be made to work using a `__conform__` method (see below).
+
+
+## Customizing behavior
+
+In order to update a transform of a Python function, for example a transform that generates a new code object based on the original source code, you need to do something like this:
+
+```python
+class Custom:
+    __slots__ = ("code",)
+
+    def __init__(self, transformed_fn, code):
+        self.code = code
+        self.transformed_fn = transformed_fn
+
+    def __conform__(self, new_code):
+        if new_code is None:
+            # Function is being deleted
+            ...
+
+        if isinstance(new_code, types.FunctionType):
+            new_code = new_code.__code__
+
+        do_something(new_code)
+        self.code = new_code
+
+...
+transformed_fn.somefield = Custom(transformed_fn, orig_fn.__code__)
+```
+
+Basically, when the original code is changed, jurigged will use the `gc` module to find objects that point to it, and if they have a `__conform__` method it will be called with the new code so that the transformed function can be updated. The original code must be in a slot on that object (it is important that it is in `__slots__`, otherwise the referrer is a dictionary). Multiple transformed functions may exist.
 
 
 ## How it works
 
 In a nutshell, jurigged works as follows:
 
-1. Insert an import hook that collects and watches source files.
-2. Parse a source file into a set of definitions.
-3. Crawl through a module to find function objects and match them to definitions.
-   * It will go through class members, follow functions' `__wrapped__` and `__closure__` pointers, and so on.
-4. When a file is modified, re-parse it into a set of definitions and match them against the original, yielding a set of changes, additions and deletions.
-5. For a change, exec the new code (with the decorators stripped out, if they haven't changed), then take the resulting function's internal `__code__` pointer and shove it into the old one. If the change fails, it will be reinterpreted as a deletion of the old code followed by the addition of the new code.
-6. New additions are run in the module namespace.
+1. Inventory existing modules and functions:
+  a. Insert an import hook that collects and watches source files.
+  b. Look at all existing functions using `gc.get_objects()`.
+  c. Add an audit hook that watches calls to `exec` in order to inventory any new functions.
+2. Parse source files into sets of definitions.
+3. When a file is modified, re-parse it into a set of definitions and match them against the original, yielding a set of changes, additions and deletions.
+4. When a function's code has changed:
+  a. Strip out the decorators
+  b. Execute the new code
+  c. Use `gc.get_referrers()` to find all functions that use the old code
+  d. Replace their internal `__code__` pointers
+5. If the replacement fails or if brand new code is added, execute the new code in the module namespace.
 
 
 ## Comparison
