@@ -2,6 +2,8 @@ import gc
 import sys
 import time
 import types
+from collections import defaultdict
+from inspect import getattr_static
 
 from ovld import ovld
 
@@ -27,7 +29,7 @@ def make_audithook(self):
 class _CodeDB:
     def __init__(self):
         self.codes = {}
-        self.functions = {}
+        self.functions = defaultdict(set)
         self.last_cost = 0
         self.always_use_cache = False
 
@@ -40,18 +42,14 @@ class _CodeDB:
         for obj in gc.get_objects():
             if isinstance(obj, types.FunctionType):
                 results.append((obj, obj.__code__))
-            elif not hasattr(obj, "__getattr__"):
-                if hasattr(obj, "__conform__"):
-                    for x in gc.get_referents(obj):
-                        if isinstance(x, types.CodeType):
-                            results.append((obj, x))
+            elif getattr_static(obj, "__conform__", None) is not None:
+                for x in gc.get_referents(obj):
+                    if isinstance(x, types.CodeType):
+                        results.append((obj, x))
         for obj, co in results:
-            if hasattr(obj, "__qualname__"):
-                self.assimilate(
-                    co, (co.co_filename, *obj.__qualname__.split("."))
-                )
-            objects = self.functions.setdefault(co, [])
-            objects.append(obj)
+            if isinstance((qual := getattr(obj, "__qualname__", None)), str):
+                self.assimilate(co, (co.co_filename, *qual.split(".")[:-1]))
+            self.functions[co].add(obj)
 
     def assimilate(self, code, path=()):
         if code.co_name == "<module>":  # pragma: no cover
@@ -75,7 +73,7 @@ class _CodeDB:
             for fn in gc.get_referrers(code)
             if isinstance(fn, types.FunctionType) or hasattr(fn, "__conform__")
         ]
-        self.functions[code] = list(results)
+        self.functions[code] = set(results)
         self.last_cost = time.time() - t
         return results
 
@@ -83,17 +81,14 @@ class _CodeDB:
         use_cache = (
             use_cache or self.always_use_cache or self.last_cost > MAX_TIME
         )
-        if use_cache and (results := self.functions.get(code, None)) is not None:
+        if use_cache and (results := self.functions[code]):
             return list(results)
         else:
             return self._get_functions(code)
 
     def update_cache_entry(self, obj, old_code, new_code):
-        if (objects_old := self.functions.get(old_code, None)) is not None:
-            if obj in objects_old:
-                objects_old.remove(obj)
-        objects_new = self.functions.setdefault(new_code, [])
-        objects_new.append(obj)
+        self.functions[old_code].discard(obj)
+        self.functions[new_code].add(obj)
 
 
 db = _CodeDB()

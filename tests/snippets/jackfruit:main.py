@@ -12,6 +12,9 @@ class Assoc:
             if isinstance(new_code, types.FunctionType):
                 new_code = new_code.__code__
             self.fn.__code__ = new_code.replace(co_name="jack2")
+            from jurigged import db
+            db.update_cache_entry(self, self.code, new_code)
+            self.code = new_code
 
 def jack1(x, y):
     return x * y
