@@ -83,18 +83,17 @@ class _CodeDB:
         use_cache = (
             use_cache or self.always_use_cache or self.last_cost > MAX_TIME
         )
-        if use_cache and (result := self.functions.get(code, None)) is not None:
-            return result
+        if use_cache and (results := self.functions.get(code, None)) is not None:
+            return list(results)
         else:
             return self._get_functions(code)
 
-    def replace_code(self, fn, new_code):
-        if (fns := self.functions.get(fn.__code__, None)) is not None:
-            if fn in fns:
-                fns.remove(fn)
-        fn.__code__ = new_code
-        fns = self.functions.setdefault(new_code, [])
-        fns.append(fn)
+    def update_cache_entry(self, obj, old_code, new_code):
+        if (objects_old := self.functions.get(old_code, None)) is not None:
+            if obj in objects_old:
+                objects_old.remove(obj)
+        objects_new = self.functions.setdefault(new_code, [])
+        objects_new.append(obj)
 
 
 db = _CodeDB()
@@ -137,7 +136,8 @@ def conform(self, obj1: types.FunctionType, obj2: types.CodeType, **kwargs):
         if ("__class__" in (fv1 or ())) ^ ("__class__" in (fv2 or ())):
             msg += " Note: The use of `super` entails the `__class__` free variable."
         raise ConformException(msg)
-    db.replace_code(obj1, obj2)
+    db.update_cache_entry(obj1, obj1.__code__, obj2)
+    obj1.__code__ = obj2
 
 
 @ovld
