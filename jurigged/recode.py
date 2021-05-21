@@ -1,15 +1,10 @@
 import linecache
 import textwrap
+from ast import _splitlines_no_ff as splitlines
 from contextlib import contextmanager
 from itertools import count
 
-from .codetools import (
-    CodeFile,
-    CodeFileOperation,
-    LineDefinition,
-    ModuleCode,
-    splitlines,
-)
+from .codetools import CodeFile, CodeFileOperation, LineDefinition, ModuleCode
 from .register import registry
 from .utils import EventSource
 

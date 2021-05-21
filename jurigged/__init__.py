@@ -1,4 +1,5 @@
-from .codedb import ConformException, conform, db
+from codefind import ConformException, code_registry as db
+
 from .codetools import CodeFile
 from .live import Watcher, watch
 from .recode import Recoder, make_recoder, virtual_file

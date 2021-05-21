@@ -3,8 +3,8 @@ import os
 from types import SimpleNamespace as NS
 
 import pytest
+from codefind import code_registry as codereg
 
-from jurigged.codedb import db
 from jurigged.codetools import CodeFile, StaleException
 
 from .common import TemporaryModule, catalogue
@@ -425,5 +425,5 @@ def test_custom_conform(jackfruit):
     assert jackfruit.module.jack2.__code__.co_name == "jack2"
 
     # Trigger a special path in collect_all
-    db.collect_all()
-    assert len(db.functions[jackfruit.module.jack1.__code__]) == 2
+    codereg.collect_all()
+    assert len(codereg.functions[jackfruit.module.jack1.__code__]) == 2

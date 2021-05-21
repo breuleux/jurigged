@@ -2,6 +2,7 @@ import ast
 import os
 import re
 from abc import abstractmethod
+from ast import _splitlines_no_ff as splitlines
 from collections import Counter
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -9,16 +10,15 @@ from dataclasses import dataclass, field, replace as dc_replace
 from types import CodeType, ModuleType
 from typing import List, Optional
 
+from codefind import ConformException, code_registry as codereg, conform
 from ovld import ovld
 
-from .codedb import ConformException, conform, db
 from .parse import Variables, variables
 from .utils import EventSource, shift_lineno
 
 current_info = ContextVar("current_info", default=None)
 
 
-splitlines = ast._splitlines_no_ff
 sep_at_start = re.compile(r"^ *[\n;]")
 sep_at_end = re.compile(r"[\n;] *$")
 
@@ -244,7 +244,9 @@ class Definition:
             code = compile(node, mode="exec", filename=self.filename)
             code = code.replace(co_name="<adjust>")
             exec(code, glb, lcl)
-            db.assimilate(code.replace(co_name=""), path=self.codepath(skip=1))
+            codereg.assimilate(
+                code.replace(co_name=""), path=self.codepath(skip=1)
+            )
 
     #############
     # Utilities #
@@ -729,8 +731,8 @@ class FunctionDefinition(GroupDefinition):
     def get_object(self):
         if self._codeobj is None:
             pth = (*self.codepath(), self.groundline)
-            if pth in db.codes:
-                self._codeobj = db.codes[pth]
+            if pth in codereg.codes:
+                self._codeobj = codereg.codes[pth]
         return self._codeobj
 
     def reevaluate(self, new_node, glb):
