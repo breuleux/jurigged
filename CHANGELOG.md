@@ -14,3 +14,7 @@ Updated the methodology for finding the functions to patch. The new method is a 
 ## 0.3.1 (2021-05-10)
 
 Fix bugs in function collection and the way existing functions or objects accept new code.
+
+## 0.3.2 (2021-05-21)
+
+Move some internal functionality to a new `codefind` package so it can be used separately.
