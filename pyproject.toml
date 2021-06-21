@@ -12,7 +12,7 @@ repository = "https://github.com/breuleux/jurigged"
 python = "^3.8"
 blessed = "^1.17.12"
 codefind = "^0.1.0"
-ovld = "^0.2.7"
+ovld = "^0.3.1"
 watchdog = "^1.0.2"
 
 [tool.poetry.dev-dependencies]
