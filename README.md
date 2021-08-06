@@ -14,6 +14,8 @@ Jurigged updates live code smartly: changing a function or method will fudge cod
 
 ## Install
 
+Jurigged requires Python version >= 3.8.
+
 ```bash
 pip install jurigged
 ```
