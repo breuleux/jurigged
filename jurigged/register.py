@@ -54,7 +54,7 @@ class Registry(metaclass=OvldMC):
                         )
 
             if os.path.exists(filename):
-                with open(filename) as f:
+                with open(filename, "r", encoding="utf8") as f:
                     self.precache[filename] = (
                         module_name,
                         f.read(),
