@@ -139,6 +139,8 @@ class JuriggedHandler(FileSystemEventHandler):
             else:
                 self._refresh()
 
+    on_created = on_modified
+
     def schedule(self, observer):
         observer.schedule(self, self.filename)
 
