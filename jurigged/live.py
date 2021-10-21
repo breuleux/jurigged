@@ -13,6 +13,7 @@ import blessed
 from ovld import ovld
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
+from watchdog.observers.polling import PollingObserverVFS
 
 from . import codetools, runpy
 from .register import registry
@@ -78,11 +79,17 @@ def conservative_logger(event):
 
 
 class Watcher:
-    def __init__(self, registry, debounce=DEFAULT_DEBOUNCE):
-        self.observer = Observer()
+    def __init__(self, registry, debounce=DEFAULT_DEBOUNCE, poll=False):
+        if poll:
+            self.observer = PollingObserverVFS(
+                stat=os.stat, listdir=os.scandir, polling_interval=poll
+            )
+        else:
+            self.observer = Observer()
         self.registry = registry
         self.registry.precache_activity.register(self.on_prepare)
         self.debounce = debounce
+        self.poll = poll
 
     def on_prepare(self, module_name, filename):
         JuriggedHandler(self, filename).schedule(self.observer)
@@ -142,12 +149,13 @@ def watch(
     registry=registry,
     autostart=True,
     debounce=DEFAULT_DEBOUNCE,
+    poll=False,
 ):
     registry.auto_register(
         filter=glob_filter(pattern) if isinstance(pattern, str) else pattern
     )
     registry.set_logger(logger)
-    watcher = Watcher(registry, debounce=debounce)
+    watcher = Watcher(registry, debounce=debounce, poll=poll)
     if autostart:
         watcher.start()
     return watcher
@@ -219,8 +227,12 @@ def cli():  # pragma: no cover
         "--debounce",
         "-d",
         type=float,
-        dest="debounce",
         help="Interval to wait for to refresh a modified file, in seconds",
+    )
+    parser.add_argument(
+        "--poll",
+        type=float,
+        help="Poll for changes using the given interval",
     )
     parser.add_argument(
         "-m",
@@ -249,6 +261,7 @@ def cli():  # pragma: no cover
         "pattern": pattern,
         "logger": default_logger if opts.verbose else conservative_logger,
         "debounce": opts.debounce or DEFAULT_DEBOUNCE,
+        "poll": opts.poll,
     }
 
     banner = ""

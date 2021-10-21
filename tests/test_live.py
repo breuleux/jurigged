@@ -125,3 +125,28 @@ def test_debounce(tmod):
     assert evts.count("DeleteOperation") == 0
     assert evts.count("AddOperation") == 1
     assert evts.count("UpdateOperation") == 1
+
+
+def test_poll(tmod):
+    def lg(evt):
+        evts.append(type(evt).__name__)
+
+    evts = []
+    mangle = "_7"
+    registry = Registry()
+    watch(pattern=tmod.rel("*.py"), registry=registry, poll=0.1)
+    registry.activity.register(lg)
+
+    za = tmod.imp("za", mangle=mangle)
+    assert za.word == "tyrant"
+
+    tmod.write("za_7.py", "")
+    time.sleep(0.05)
+    tmod.write("za_7.py", 'word = "tyrant"\nxxx = "xxx"')
+    time.sleep(0.10)
+    assert za.word == "tyrant"
+    assert za.xxx == "xxx"
+
+    assert evts.count("DeleteOperation") == 0
+    assert evts.count("AddOperation") == 1
+    assert evts.count("UpdateOperation") == 1
