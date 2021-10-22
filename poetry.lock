@@ -84,7 +84,7 @@ colorama = {version = "*", markers = "platform_system == \"Windows\""}
 
 [[package]]
 name = "codefind"
-version = "0.1.2"
+version = "0.1.3"
 description = "Find code objects and their referents"
 category = "main"
 optional = false
@@ -351,7 +351,7 @@ python-versions = "*"
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.8"
-content-hash = "bc967670729c349c3a2576964b0a50951f067fcde07cd0276604b2caf84d3fa8"
+content-hash = "32059e5da493649310e5a1d9143ef7c17975a4c60be2b135cbaded9d49c1a1b4"
 
 [metadata.files]
 ansicon = [
@@ -382,8 +382,8 @@ click = [
     {file = "click-8.0.3.tar.gz", hash = "sha256:410e932b050f5eed773c4cda94de75971c89cdb3155a72a0831139a79e5ecb5b"},
 ]
 codefind = [
-    {file = "codefind-0.1.2-py3-none-any.whl", hash = "sha256:a2cc9e2a6461703f70bc2ac99e13c137b07d8fb0548ea4cf415be959eeed8803"},
-    {file = "codefind-0.1.2.tar.gz", hash = "sha256:eebe0902a93417bca068e273a8244f6a376d01e01155d4479dadb8cb96d179c6"},
+    {file = "codefind-0.1.3-py3-none-any.whl", hash = "sha256:3ffe85b74595b5c9f82391a11171ce7d68f1f555485720ab922f3b86f9bf30ec"},
+    {file = "codefind-0.1.3.tar.gz", hash = "sha256:5667050361bf601a253031b2437d16b7d82cb0fa0e756d93e548c7b35ce6f910"},
 ]
 colorama = [
     {file = "colorama-0.4.4-py2.py3-none-any.whl", hash = "sha256:9f47eda37229f68eee03b24b9748937c7dc3868f906e8ba69fbcbdd3bc5dc3e2"},
