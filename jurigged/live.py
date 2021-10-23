@@ -124,25 +124,29 @@ class JuriggedHandler(FileSystemEventHandler):
         self.timer = None
 
     def on_modified(self, event):
-        mtime = os.path.getmtime(event.src_path)
-        # The modified event sometimes fires twice for no reason
-        # even though the mtime is the same
-        if mtime != self.mtime:
-            self.mtime = mtime
-            if self.watcher.debounce:
-                if self.timer is not None:
-                    self.timer.cancel()
-                self.timer = threading.Timer(
-                    self.watcher.debounce, self._refresh
-                )
-                self.timer.start()
-            else:
-                self._refresh()
+        if event.src_path == self.filename:
+            mtime = os.path.getmtime(event.src_path)
+            # The modified event sometimes fires twice for no reason
+            # even though the mtime is the same
+            if mtime != self.mtime:
+                self.mtime = mtime
+                if self.watcher.debounce:
+                    if self.timer is not None:
+                        self.timer.cancel()
+                    self.timer = threading.Timer(
+                        self.watcher.debounce, self._refresh
+                    )
+                    self.timer.start()
+                else:
+                    self._refresh()
 
     on_created = on_modified
 
     def schedule(self, observer):
-        observer.schedule(self, self.filename)
+        # Watch the directory, because when watching a file, the watcher stops when
+        # it is deleted and will not pick back up if the file is recreated. This happens
+        # when some editors save.
+        observer.schedule(self, os.path.dirname(self.filename))
 
 
 def watch(
