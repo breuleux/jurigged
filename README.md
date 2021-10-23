@@ -46,14 +46,13 @@ jurigged
 Full help:
 
 ```
-usage: jurigged [-h] [--interactive] [--watch PATH] [--debounce DEBOUNCE] [-m MODULE]
-                [--verbose] [--version]
-                [PATH] ...
+usage: jurigged [-h] [--interactive] [--watch PATH] [--debounce DEBOUNCE] [--poll POLL] [-m MODULE] [--verbose] [--version]
+                [SCRIPT] ...
 
 Run a Python script so that it is live-editable.
 
 positional arguments:
-  PATH                  Path to the script to run
+  SCRIPT                Path to the script to run
   ...                   Script arguments
 
 optional arguments:
@@ -63,6 +62,7 @@ optional arguments:
                         Wildcard path/directory for which files to watch
   --debounce DEBOUNCE, -d DEBOUNCE
                         Interval to wait for to refresh a modified file, in seconds
+  --poll POLL           Poll for changes using the given interval
   -m MODULE             Module or module:function to run
   --verbose, -v         Show watched files and changes as they happen
   --version             Print version
@@ -79,7 +79,7 @@ By default, scripts are watched in the current working directory. Try `jurigged 
 
 **The file is watched, but nothing happens when I change the function.**
 
-It's possibly because you are using an editor that saves into a temporary swap file and moves it into place (vi does this). The `watchdog` library that Jurigged uses loses track of the file when that happens. Pending a better solution, you can try to configure your editor so that it writes to the file directly. For example, in vi, `:set nowritebackup` seems to do the trick (either put it in your .vimrc or execute it *before* you save for the first time).
+You can try using the `--poll <INTERVAL>` flag to use polling instead of the OS's native mechanisms. If that doesn't work, try and see if it works with a different editor: it might have to do with the way the editor saves. For example, some editors such as vi save into a temporary swap file and moves it into place, which used to cause issues (this should be fixed starting with `v0.3.5`).
 
 **Jurigged said it updated the function but it's still running the old code.**
 

@@ -18,3 +18,20 @@ Fix bugs in function collection and the way existing functions or objects accept
 ## 0.3.2 (2021-05-21)
 
 Move some internal functionality to a new `codefind` package so it can be used separately.
+
+## 0.3.2 (2021-05-21)
+
+Move some internal functionality to a new `codefind` package so it can be used separately.
+
+## 0.3.3 (2021-06-21)
+
+Fix to a dependency.
+
+## 0.3.4 (2021-07-20)
+
+Fix a bug with `sys.path` resolution.
+
+## 0.3.5 (2021-10-22)
+
+* Improve file watching, which should fix issues with vi and other editors.
+* Add `--poll <INTERVAL>`.
