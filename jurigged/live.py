@@ -209,7 +209,7 @@ def find_runner(opts, pattern):  # pragma: no cover
 
 
 def cli():  # pragma: no cover
-    sys.path.insert(0, os.curdir)
+    sys.path.insert(0, os.path.abspath(os.curdir))
 
     parser = argparse.ArgumentParser(
         description="Run a Python script so that it is live-editable."
