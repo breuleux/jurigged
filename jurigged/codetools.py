@@ -588,7 +588,8 @@ class GroupDefinition(Definition):
     def evaluate(self, glb, lcl):
         super().evaluate(glb, lcl)
         obj = (lcl or glb).get(self.name, None)
-        obj.__qualname__ = ".".join(self.dotpath().split(".")[1:])
+        if hasattr(obj, "__qualname__"):
+            obj.__qualname__ = ".".join(self.dotpath().split(".")[1:])
 
     @abstractmethod
     def evaluate_child(self, child):
