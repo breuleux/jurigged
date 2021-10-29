@@ -16,6 +16,38 @@ from rich.traceback import Traceback
 
 from .register import registry
 
+real_stdout = sys.stdout
+
+
+@give.variant
+def givex(data):
+    return {f"#{k}": v for k, v in data.items()}
+
+
+def itemsetter(coll, key):
+    def setter(value):
+        coll[key] = value
+
+    return setter
+
+
+def itemappender(coll, key):
+    def appender(value):
+        coll[key] += value
+
+    return appender
+
+
+class FileGiver:
+    def __init__(self, name):
+        self.name = name
+
+    def write(self, x):
+        give(**{self.name: x})
+
+    def flush(self):
+        pass
+
 
 def inject():
     builtins._loop = loop
@@ -23,24 +55,16 @@ def inject():
 
 
 def do(fn, args, kwargs):
-    out = io.StringIO()
-    err = io.StringIO()
+    out = FileGiver("#stdout")
+    err = FileGiver("#stderr")
 
-    results = {}
-
-    with given() as gv:
-        with redirect_stdout(out), redirect_stderr(err):
-            try:
-                results["result"] = fn(*args, **kwargs)
-            except KeyboardInterrupt as exc:
-                raise
-            except Exception as exc:
-                results["error"] = exc
-            finally:
-                results["stdout"] = out.getvalue()
-                results["stderr"] = err.getvalue()
-
-    return results
+    with redirect_stdout(out), redirect_stderr(err):
+        try:
+            givex(result=fn(*args, **kwargs))
+        except KeyboardInterrupt as exc:
+            raise
+        except Exception as error:
+            givex(error)
 
 
 @contextmanager
@@ -73,34 +97,60 @@ class DeveloopRunner:
         self.fn = fn
         self.args = args
         self.kwargs = kwargs
-        self.lv = Live()
+        self.lv = Live(auto_refresh=False)
 
-    def update(self, results):
-        panels = []
-        if stdout := results.get("stdout", None):
-            panels.append(Panel(stdout.rstrip(), title="stdout"))
-        if stderr := results.get("stderr", None):
-            panels.append(Panel(stderr.rstrip(), title="stderr"))
-        if error := results.get("error", None):
-            tb = Traceback(
-                trace=Traceback.extract(
-                    type(error), error, error.__traceback__
-                ),
-                suppress=["jurigged"],
-                show_locals=True,
+    def register_updates(self, gv):
+        def update(_=None):
+            panels = []
+            if stdout := results.get("stdout", None):
+                panels.append(Panel(stdout.rstrip(), title="stdout"))
+            if stderr := results.get("stderr", None):
+                panels.append(Panel(stderr.rstrip(), title="stderr"))
+            if error := results.get("error", None):
+                tb = Traceback(
+                    trace=Traceback.extract(
+                        type(error), error, error.__traceback__
+                    ),
+                    suppress=["jurigged"],
+                    show_locals=True,
+                )
+                panels.append(tb)
+            if "result" in results:
+                panels.append(Panel(Pretty(results["result"]), title="result"))
+            panels.append(
+                markup("[bold](r)[/bold]erun | [bold](Enter)[/bold] return")
             )
-            panels.append(tb)
-        if "result" in results:
-            panels.append(Panel(Pretty(results["result"]), title="result"))
-        panels.append(
-            markup("[bold](r)[/bold]erun | [bold](Enter)[/bold] return")
-        )
 
-        self.lv.update(Group(*panels))
+            with redirect_stdout(real_stdout):
+                self.lv.update(Group(*panels), refresh=True)
+
+        results = {
+            "stdout": "",
+            "stderr": "",
+        }
+
+        # Append stdout/stderr incrementally
+        gv["?#stdout"] >> itemappender(results, "stdout")
+        gv["?#stderr"] >> itemappender(results, "stderr")
+
+        # Set result and error when we get it
+        gv["?#result"] >> itemsetter(results, "result")
+        gv["?#error"] >> itemsetter(results, "error")
+
+        # TODO: this may be a bit wasteful
+        # Debounce is used to ignore events if they are followed by another
+        # event less than 0.05s later. Delay + throttle ensures we get at
+        # least one event every 0.25s. We of course update as soon as the
+        # last event is in.
+        (
+            gv.debounce(0.05) | gv.delay(0.25).throttle(0.25) | gv.last()
+        ) >> update
+        return results
 
     def run(self):
-        results = do(self.fn, self.args, self.kwargs)
-        self.update(results)
+        with given() as gv:
+            results = self.register_updates(gv)
+            do(self.fn, self.args, self.kwargs)
         return results.get("result", None), results.get("error", None)
 
     def loop(self):
@@ -118,19 +168,15 @@ class DeveloopRunner:
             with cbreak(), watching_changes() as chgs:
                 scheduler = rx.scheduler.EventLoopScheduler()
                 keypresses = ObservableProxy(
-                    rx.from_iterable(
-                        read_chars(),
-                        scheduler=scheduler
-                    )
+                    rx.from_iterable(read_chars(), scheduler=scheduler)
                 ).share()
 
-                with given() as gv:
-                    keypresses.where(char="\n") >> stop
-                    keypresses.where(char="r") >> go
-                    chgs >> go
+                keypresses.where(char="\n") >> stop
+                keypresses.where(char="r") >> go
+                chgs.debounce(0.05) >> go
 
-                    go()
-                    scheduler.run()
+                go()
+                scheduler.run()
 
         if err is not None:
             raise err
