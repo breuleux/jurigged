@@ -12,6 +12,7 @@ from rich.live import Live
 from rich.markup import render as markup
 from rich.panel import Panel
 from rich.pretty import Pretty
+from rich.table import Table
 from rich.traceback import Traceback
 
 from .register import registry
@@ -106,6 +107,14 @@ class DeveloopRunner:
                 panels.append(Panel(stdout.rstrip(), title="stdout"))
             if stderr := results.get("stderr", None):
                 panels.append(Panel(stderr.rstrip(), title="stderr"))
+            if gvn := results.get("given", None):
+                table = Table.grid(padding=(0, 3, 0, 0))
+                table.add_column("key", style="bold green")
+                table.add_column("value")
+                for k, v in gvn.items():
+                    table.add_row(k, Pretty(v))
+                panels.append(Panel(table, title="given"))
+
             if error := results.get("error", None):
                 tb = Traceback(
                     trace=Traceback.extract(
@@ -124,9 +133,11 @@ class DeveloopRunner:
             with redirect_stdout(real_stdout):
                 self.lv.update(Group(*panels), refresh=True)
 
+        gvn = {}
         results = {
             "stdout": "",
             "stderr": "",
+            "given": gvn,
         }
 
         # Append stdout/stderr incrementally
@@ -136,6 +147,17 @@ class DeveloopRunner:
         # Set result and error when we get it
         gv["?#result"] >> itemsetter(results, "result")
         gv["?#error"] >> itemsetter(results, "error")
+
+        # Fill given table
+        @gv.subscribe
+        def fill_given(d):
+            gvn.update(
+                {
+                    k: v
+                    for k, v in d.items()
+                    if not k.startswith("#") and not k.startswith("$")
+                }
+            )
 
         # TODO: this may be a bit wasteful
         # Debounce is used to ignore events if they are followed by another
