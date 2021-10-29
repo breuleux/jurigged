@@ -1,5 +1,6 @@
 import builtins
 import ctypes
+import select
 import sys
 import termios
 import threading
@@ -64,18 +65,18 @@ def do(fn, args, kwargs):
     with redirect_stdout(out), redirect_stderr(err):
         try:
             givex(result=fn(*args, **kwargs), status="done")
-        except AbortRun:
+        except Abort:
             givex(status="aborted")
             raise
         except Exception as error:
             givex(error, status="error")
 
 
-class AbortRun(Exception):
+class Abort(Exception):
     pass
 
 
-def kill_thread(thread, exctype=AbortRun):
+def kill_thread(thread, exctype=Abort):
     ctypes.pythonapi.PyThreadState_SetAsyncExc(
         ctypes.c_long(thread.ident), ctypes.py_object(exctype)
     )
@@ -92,8 +93,12 @@ def cbreak():
 
 
 def read_chars():
-    while True:
-        yield {"char": sys.stdin.read(1)}
+    try:
+        while True:
+            if select.select([sys.stdin], [], [], 0.02):
+                yield {"char": sys.stdin.read(1)}
+    except Abort:
+        pass
 
 
 @contextmanager
@@ -217,7 +222,7 @@ class DeveloopRunner:
         def command(name, aborts=False):
             def perform(_=None):
                 if aborts:
-                    # Asynchronously sends the AbortRun exception to the
+                    # Asynchronously sends the Abort exception to the
                     # thread in which the function runs.
                     kill_thread(loop_thread)
                 setcommand(name)
@@ -255,8 +260,11 @@ class DeveloopRunner:
                         elif cmd == "quit":
                             sys.exit(1)
 
-                    except AbortRun:
+                    except Abort:
                         continue
+
+        kill_thread(scheduler._thread)
+        scheduler.dispose()
 
         if err is not None:
             raise err
