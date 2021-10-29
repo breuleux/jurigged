@@ -268,6 +268,9 @@ class Develoop:
     def __init__(self, fn):
         self.fn = fn
 
+    def __get__(self, obj, cls):
+        return type(self)(self.fn.__get__(obj, cls))
+
     def __call__(self, *args, **kwargs):
         return DeveloopRunner(self.fn, args, kwargs).loop()
 
