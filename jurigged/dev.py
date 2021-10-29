@@ -193,14 +193,16 @@ class DeveloopRunner:
         (
             gv.debounce(0.05) | gv.delay(0.25).throttle(0.25) | gv.last()
         ) >> update
-        return results
 
     def run(self):
         self.num += 1
+        outcome = [None, None]  # [result, error]
         with given() as gv:
-            results = self.register_updates(gv)
+            gv["?#result"] >> itemsetter(outcome, 0)
+            gv["?#error"] >> itemsetter(outcome, 1)
+            self.register_updates(gv)
             do(self.fn, self.args, self.kwargs)
-        return results.get("result", None), results.get("error", None)
+        return outcome
 
     def loop(self):
         def setcommand(cmd):
