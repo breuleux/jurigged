@@ -1,9 +1,11 @@
 import builtins
-import io
+import ctypes
 import sys
 import termios
+import threading
 import tty
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
+from queue import Queue
 
 import rx
 from giving import ObservableProxy, SourceProxy, give, given
@@ -61,11 +63,22 @@ def do(fn, args, kwargs):
 
     with redirect_stdout(out), redirect_stderr(err):
         try:
-            givex(result=fn(*args, **kwargs))
-        except KeyboardInterrupt as exc:
+            givex(result=fn(*args, **kwargs), status="done")
+        except AbortRun:
+            givex(status="aborted")
             raise
         except Exception as error:
-            givex(error)
+            givex(error, status="error")
+
+
+class AbortRun(Exception):
+    pass
+
+
+def kill_thread(thread, exctype=AbortRun):
+    ctypes.pythonapi.PyThreadState_SetAsyncExc(
+        ctypes.c_long(thread.ident), ctypes.py_object(exctype)
+    )
 
 
 @contextmanager
@@ -98,6 +111,7 @@ class DeveloopRunner:
         self.fn = fn
         self.args = args
         self.kwargs = kwargs
+        self.num = 0
         self.lv = Live(auto_refresh=False)
 
     def register_updates(self, gv):
@@ -124,11 +138,21 @@ class DeveloopRunner:
                     show_locals=True,
                 )
                 panels.append(tb)
-            if "result" in results:
+
+            has_result = "result" in results
+            if has_result:
                 panels.append(Panel(Pretty(results["result"]), title="result"))
-            panels.append(
-                markup("[bold](r)[/bold]erun | [bold](Enter)[/bold] return")
-            )
+
+            status = results["status"]
+            footer = [
+                f"#{self.num} ({status})",
+                "[bold](r)[/bold]erun",
+                "[bold](Enter)[/bold] return",
+                "[bold](q)[/bold]uit",
+                (not has_result) and "[red][bold](a)[/bold]bort[/red]",
+            ]
+
+            panels.append(markup(" | ".join(x for x in footer if x)))
 
             with redirect_stdout(real_stdout):
                 self.lv.update(Group(*panels), refresh=True)
@@ -138,6 +162,7 @@ class DeveloopRunner:
             "stdout": "",
             "stderr": "",
             "given": gvn,
+            "status": "running",
         }
 
         # Append stdout/stderr incrementally
@@ -147,6 +172,7 @@ class DeveloopRunner:
         # Set result and error when we get it
         gv["?#result"] >> itemsetter(results, "result")
         gv["?#error"] >> itemsetter(results, "error")
+        gv["?#status"] >> itemsetter(results, "status")
 
         # Fill given table
         @gv.subscribe
@@ -170,21 +196,37 @@ class DeveloopRunner:
         return results
 
     def run(self):
+        self.num += 1
         with given() as gv:
             results = self.register_updates(gv)
             do(self.fn, self.args, self.kwargs)
         return results.get("result", None), results.get("error", None)
 
     def loop(self):
-        result = None
-        err = None
+        def setcommand(cmd):
+            while not q.empty():
+                q.get()
+            q.put(cmd)
 
-        def go(_=None):
+        def run():
             nonlocal result, err
             result, err = self.run()
 
-        def stop(_=None):
-            scheduler.dispose()
+        def command(name, aborts=False):
+            def perform(_=None):
+                if aborts:
+                    # Asynchronously sends the AbortRun exception to the
+                    # thread in which the function runs.
+                    kill_thread(loop_thread)
+                setcommand(name)
+
+            return perform
+
+        result = None
+        err = None
+        q = Queue()
+        setcommand("go")
+        loop_thread = threading.current_thread()
 
         with self.lv:
             with cbreak(), watching_changes() as chgs:
@@ -193,12 +235,26 @@ class DeveloopRunner:
                     rx.from_iterable(read_chars(), scheduler=scheduler)
                 ).share()
 
-                keypresses.where(char="\n") >> stop
-                keypresses.where(char="r") >> go
-                chgs.debounce(0.05) >> go
+                keypresses.where(char="a") >> command("abort", aborts=True)
+                keypresses.where(char="q") >> command("quit", aborts=True)
+                keypresses.where(char="\n") >> command("stop")
+                keypresses.where(char="r") >> command("go", aborts=True)
+                chgs.debounce(0.05) >> command("go", aborts=True)
 
-                go()
-                scheduler.run()
+                while True:
+                    try:
+                        cmd = q.get()
+                        if cmd == "go":
+                            run()
+                        elif cmd == "stop":
+                            break
+                        elif cmd == "abort":
+                            pass
+                        elif cmd == "quit":
+                            sys.exit(1)
+
+                    except AbortRun:
+                        continue
 
         if err is not None:
             raise err
