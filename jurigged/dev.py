@@ -6,6 +6,7 @@ import termios
 import threading
 import tty
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
+from functools import partial
 from queue import Queue
 
 import rx
@@ -151,10 +152,10 @@ class DeveloopRunner:
             status = results["status"]
             footer = [
                 f"#{self.num} ({status})",
+                "[bold](c)[/bold]ontinue",
                 "[bold](r)[/bold]erun",
-                "[bold](Enter)[/bold] return",
+                (not has_result and not error) and "[bold](a)[/bold]bort",
                 "[bold](q)[/bold]uit",
-                (not has_result) and "[red][bold](a)[/bold]bort[/red]",
             ]
 
             panels.append(markup(" | ".join(x for x in footer if x)))
@@ -209,15 +210,11 @@ class DeveloopRunner:
             do(self.fn, self.args, self.kwargs)
         return outcome
 
-    def loop(self):
+    def loop(self, from_error=None):
         def setcommand(cmd):
             while not q.empty():
                 q.get()
             q.put(cmd)
-
-        def run():
-            nonlocal result, err
-            result, err = self.run()
 
         def command(name, aborts=False):
             def perform(_=None):
@@ -232,7 +229,12 @@ class DeveloopRunner:
         result = None
         err = None
         q = Queue()
-        setcommand("go")
+
+        if from_error:
+            setcommand("from_error")
+        else:
+            setcommand("go")
+
         loop_thread = threading.current_thread()
 
         with self.lv:
@@ -242,23 +244,29 @@ class DeveloopRunner:
                     rx.from_iterable(read_chars(), scheduler=scheduler)
                 ).share()
 
+                keypresses.where(char="c") >> command("cont")
+                keypresses.where(char="r") >> command("go", aborts=True)
                 keypresses.where(char="a") >> command("abort", aborts=True)
                 keypresses.where(char="q") >> command("quit", aborts=True)
-                keypresses.where(char="\n") >> command("stop")
-                keypresses.where(char="r") >> command("go", aborts=True)
+
                 chgs.debounce(0.05) >> command("go", aborts=True)
 
                 while True:
                     try:
                         cmd = q.get()
                         if cmd == "go":
-                            run()
-                        elif cmd == "stop":
+                            result, err = self.run()
+                        elif cmd == "cont":
                             break
                         elif cmd == "abort":
                             pass
                         elif cmd == "quit":
                             sys.exit(1)
+                        elif cmd == "from_error":
+                            with given() as gv:
+                                self.register_updates(gv)
+                                givex(error=from_error)
+                            result, err = None, from_error
 
                     except Abort:
                         continue
@@ -273,14 +281,23 @@ class DeveloopRunner:
 
 
 class Develoop:
-    def __init__(self, fn):
+    def __init__(self, fn, on_error=False):
         self.fn = fn
+        self.on_error = on_error
 
     def __get__(self, obj, cls):
-        return type(self)(self.fn.__get__(obj, cls))
+        return type(self)(self.fn.__get__(obj, cls), on_error=self.on_error)
 
     def __call__(self, *args, **kwargs):
-        return DeveloopRunner(self.fn, args, kwargs).loop()
+        exc = None
+        if self.on_error:
+            try:
+                return self.fn(*args, **kwargs)
+            except Exception as _exc:
+                exc = _exc
+
+        return DeveloopRunner(self.fn, args, kwargs).loop(from_error=exc)
 
 
 loop = Develoop
+loop_on_error = partial(Develoop, on_error=True)
