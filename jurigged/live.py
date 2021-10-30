@@ -247,6 +247,11 @@ def cli():  # pragma: no cover
         help="Module or module:function to run",
     )
     parser.add_argument(
+        "--dev",
+        action="store_true",
+        help="Inject jurigged.loop.__ in builtins",
+    )
+    parser.add_argument(
         "--verbose",
         "-v",
         action="store_true",
@@ -261,6 +266,11 @@ def cli():  # pragma: no cover
         "rest", metavar="...", nargs=argparse.REMAINDER, help="Script arguments"
     )
     opts = parser.parse_args()
+
+    if opts.dev:
+        from .loop import inject
+
+        inject()
 
     pattern = glob_filter(opts.watch or ".")
     watch_args = {
