@@ -84,25 +84,6 @@ def kill_thread(thread, exctype=Abort):
 
 
 @contextmanager
-def cbreak():
-    old_attrs = termios.tcgetattr(sys.stdin)
-    tty.setcbreak(sys.stdin)
-    try:
-        yield
-    finally:
-        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_attrs)
-
-
-def read_chars():
-    try:
-        while True:
-            if select.select([sys.stdin], [], [], 0.02):
-                yield {"char": sys.stdin.read(1)}
-    except Abort:
-        pass
-
-
-@contextmanager
 def watching_changes():
     src = SourceProxy()
     registry.activity.append(src._push)
@@ -118,6 +99,22 @@ class DeveloopRunner:
         self.args = args
         self.kwargs = kwargs
         self.num = 0
+        self._q = Queue()
+
+    def setcommand(self, cmd):
+        while not self._q.empty():
+            self._q.get()
+        self._q.put(cmd)
+
+    def command(self, name, aborts=False):
+        def perform(_=None):
+            if aborts:
+                # Asynchronously sends the Abort exception to the
+                # thread in which the function runs.
+                kill_thread(self._loop_thread)
+            self.setcommand(name)
+
+        return perform
 
     @contextmanager
     def wrap_loop(self):
@@ -137,73 +134,61 @@ class DeveloopRunner:
         return outcome
 
     def loop(self, from_error=None):
-        def setcommand(cmd):
-            while not q.empty():
-                q.get()
-            q.put(cmd)
-
-        def command(name, aborts=False):
-            def perform(_=None):
-                if aborts:
-                    # Asynchronously sends the Abort exception to the
-                    # thread in which the function runs.
-                    kill_thread(loop_thread)
-                setcommand(name)
-
-            return perform
-
+        self._loop_thread = threading.current_thread()
         result = None
         err = None
-        q = Queue()
 
         if from_error:
-            setcommand("from_error")
+            self.setcommand("from_error")
         else:
-            setcommand("go")
+            self.setcommand("go")
 
-        loop_thread = threading.current_thread()
+        with self.wrap_loop(), watching_changes() as chgs:
+            chgs.debounce(0.05) >> self.command("go", aborts=True)
 
-        with self.wrap_loop():
-            with cbreak(), watching_changes() as chgs:
-                scheduler = rx.scheduler.EventLoopScheduler()
-                keypresses = ObservableProxy(
-                    rx.from_iterable(read_chars(), scheduler=scheduler)
-                ).share()
+            while True:
+                try:
+                    cmd = self._q.get()
+                    if cmd == "go":
+                        result, err = self.run()
+                    elif cmd == "cont":
+                        break
+                    elif cmd == "abort":
+                        pass
+                    elif cmd == "quit":
+                        sys.exit(1)
+                    elif cmd == "from_error":
+                        with given() as gv:
+                            self.register_updates(gv)
+                            givex(error=from_error, status="error")
+                        result, err = None, from_error
 
-                keypresses.where(char="c") >> command("cont")
-                keypresses.where(char="r") >> command("go", aborts=True)
-                keypresses.where(char="a") >> command("abort", aborts=True)
-                keypresses.where(char="q") >> command("quit", aborts=True)
-
-                chgs.debounce(0.05) >> command("go", aborts=True)
-
-                while True:
-                    try:
-                        cmd = q.get()
-                        if cmd == "go":
-                            result, err = self.run()
-                        elif cmd == "cont":
-                            break
-                        elif cmd == "abort":
-                            pass
-                        elif cmd == "quit":
-                            sys.exit(1)
-                        elif cmd == "from_error":
-                            with given() as gv:
-                                self.register_updates(gv)
-                                givex(error=from_error, status="error")
-                            result, err = None, from_error
-
-                    except Abort:
-                        continue
-
-        kill_thread(scheduler._thread)
-        scheduler.dispose()
+                except Abort:
+                    continue
 
         if err is not None:
             raise err
         else:
             return result
+
+
+@contextmanager
+def cbreak():
+    old_attrs = termios.tcgetattr(sys.stdin)
+    tty.setcbreak(sys.stdin)
+    try:
+        yield
+    finally:
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_attrs)
+
+
+def read_chars():
+    try:
+        while True:
+            if select.select([sys.stdin], [], [], 0.02):
+                yield {"char": sys.stdin.read(1)}
+    except Abort:
+        pass
 
 
 class RichDeveloopRunner(DeveloopRunner):
@@ -255,8 +240,23 @@ class RichDeveloopRunner(DeveloopRunner):
 
     @contextmanager
     def wrap_loop(self):
-        with self.lv:
-            yield
+        with self.lv, cbreak():
+            try:
+                scheduler = rx.scheduler.EventLoopScheduler()
+                keypresses = ObservableProxy(
+                    rx.from_iterable(read_chars(), scheduler=scheduler)
+                ).share()
+
+                keypresses.where(char="c") >> self.command("cont")
+                keypresses.where(char="r") >> self.command("go", aborts=True)
+                keypresses.where(char="a") >> self.command("abort", aborts=True)
+                keypresses.where(char="q") >> self.command("quit", aborts=True)
+
+                yield
+
+            finally:
+                kill_thread(scheduler._thread)
+                scheduler.dispose()
 
     def register_updates(self, gv):
         gvn = {}
