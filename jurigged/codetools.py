@@ -1121,7 +1121,7 @@ class CodeFile:
             cf = CodeFile(
                 self.filename, source=new_source, module_name=self.module_name
             )
-            self.merge(cf)
+            self.merge(cf, order="new")
             self.root.stash()
 
 
