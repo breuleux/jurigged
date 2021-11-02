@@ -1,14 +1,27 @@
 import ctypes
+import linecache
 import sys
 import threading
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from queue import Queue
 
+from executing import Source
 from giving import SourceProxy, give, given
 
 from ..register import registry
 
 real_stdout = sys.stdout
+
+
+@registry.activity.append
+def _(evt):
+    # Patch to ensure the executing module's cache is invalidated whenever
+    # a source file is changed.
+    cache = Source._class_local("__source_cache", {})
+    filename = evt.codefile.filename
+    if filename in cache:
+        del cache[filename]
+    linecache.checkcache(filename)
 
 
 @give.variant
