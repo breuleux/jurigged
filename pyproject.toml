@@ -41,6 +41,7 @@ skip = "tests/snippets/"
 omit = [
     "jurigged/__main__.py",
     "jurigged/runpy.py",
+    "jurigged/loop/*",
     "tests/*",
 ]
 
