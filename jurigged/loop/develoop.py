@@ -10,8 +10,6 @@ from giving import SourceProxy, give, given
 
 from ..register import registry
 
-real_stdout = sys.stdout
-
 
 @registry.activity.append
 def _(evt):
@@ -52,20 +50,6 @@ class FileGiver:
 
     def flush(self):
         pass
-
-
-def do(fn, args, kwargs):
-    out = FileGiver("#stdout")
-    err = FileGiver("#stderr")
-
-    with redirect_stdout(out), redirect_stderr(err):
-        try:
-            givex(result=fn(*args, **kwargs), status="done")
-        except Abort:
-            givex(status="aborted")
-            raise
-        except Exception as error:
-            givex(error, status="error")
 
 
 class Abort(Exception):
@@ -111,8 +95,19 @@ class DeveloopRunner:
 
         return perform
 
+    def signature(self):
+        name = getattr(self.fn, "__qualname__", str(self.fn))
+        parts = list(map(str, self.args))
+        parts += [f"{k}={v}" for k, v in self.kwargs.items()]
+        args = ", ".join(parts)
+        return f"{name}({args})"
+
     @contextmanager
     def wrap_loop(self):
+        yield
+
+    @contextmanager
+    def wrap_run(self):
         yield
 
     def register_updates(self, gv):
@@ -121,11 +116,17 @@ class DeveloopRunner:
     def run(self):
         self.num += 1
         outcome = [None, None]  # [result, error]
-        with given() as gv:
+        with given() as gv, self.wrap_run():
             gv["?#result"] >> itemsetter(outcome, 0)
             gv["?#error"] >> itemsetter(outcome, 1)
             self.register_updates(gv)
-            do(self.fn, self.args, self.kwargs)
+            try:
+                givex(result=self.fn(*self.args, **self.kwargs), status="done")
+            except Abort:
+                givex(status="aborted")
+                raise
+            except Exception as error:
+                givex(error, status="error")
         return outcome
 
     def loop(self, from_error=None):
@@ -165,6 +166,16 @@ class DeveloopRunner:
             raise err
         else:
             return result
+
+
+class RedirectDeveloopRunner(DeveloopRunner):
+    @contextmanager
+    def wrap_run(self):
+        out = FileGiver("#stdout")
+        err = FileGiver("#stderr")
+
+        with redirect_stdout(out), redirect_stderr(err):
+            yield
 
 
 class Develoop:
