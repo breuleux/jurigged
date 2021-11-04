@@ -1,8 +1,5 @@
 import re
-import select
 import sys
-import termios
-import tty
 from contextlib import contextmanager
 
 import rx
@@ -24,11 +21,9 @@ from rich.text import Text
 from rich.theme import Theme
 from rich.traceback import Traceback
 
-from .develoop import Abort, DeveloopRunner, itemappender, kill_thread
+from .basic import ANSI_ESCAPE, cbreak, read_chars
+from .develoop import RedirectDeveloopRunner, itemappender, kill_thread
 
-ANSI_ESCAPE = re.compile(r"\x1b\[[;\d]*[A-Za-z]")
-ANSI_ESCAPE_INNER = re.compile(r"[\x1b\[;\d]")
-ANSI_ESCAPE_END = re.compile(r"[A-Za-z~]")
 REAL_STDOUT = sys.stdout
 TEMP_CONSOLE = Console(color_system="standard")
 
@@ -97,40 +92,6 @@ class TracebackNoFrame(Traceback):
                     yield Text.from_markup(
                         "\n[i]During handling of the above exception, another exception occurred:\n",
                     )
-
-
-@contextmanager
-def cbreak():
-    old_attrs = termios.tcgetattr(sys.stdin)
-    tty.setcbreak(sys.stdin)
-    try:
-        yield
-    finally:
-        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_attrs)
-
-
-def read_chars():
-    esc = None
-    try:
-        while True:
-            if select.select([sys.stdin], [], [], 0.02):
-                ch = sys.stdin.read(1)
-                if esc is not None:
-                    if ANSI_ESCAPE_INNER.match(ch):
-                        esc += ch
-                    elif ANSI_ESCAPE_END.match(ch):
-                        yield {"char": esc + ch, "escape": True}
-                        esc = None
-                    else:
-                        yield {"char": esc, "escape": True}
-                        esc = None
-                        yield {"char": ch}
-                elif ch == "\x1b":
-                    esc = ""
-                else:
-                    yield {"char": ch}
-    except Abort:
-        pass
 
 
 class RawSegment(Segment):
@@ -314,7 +275,7 @@ class Dash:
         return self.lv
 
 
-class RichDeveloopRunner(DeveloopRunner):
+class RichDeveloopRunner(RedirectDeveloopRunner):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.dash = Dash(
@@ -330,13 +291,6 @@ class RichDeveloopRunner(DeveloopRunner):
                 title="result", border="cyan", border_highlight="bold cyan"
             ),
         )
-
-    def signature(self):
-        name = getattr(self.fn, "__qualname__", str(self.fn))
-        parts = list(map(str, self.args))
-        parts += [f"{k}={v}" for k, v in self.kwargs.items()]
-        args = ", ".join(parts)
-        return f"{name}({args})"
 
     def _update(self):
         footer = [

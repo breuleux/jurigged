@@ -4,7 +4,8 @@ from types import SimpleNamespace
 
 from giving import give, given
 
-from .develoop import Develoop, DeveloopRunner
+from .basic import BasicDeveloopRunner
+from .develoop import Develoop, DeveloopRunner, RedirectDeveloopRunner
 from .richloop import RichDeveloopRunner
 
 loop = partial(Develoop, on_error=False, runner_class=RichDeveloopRunner)
