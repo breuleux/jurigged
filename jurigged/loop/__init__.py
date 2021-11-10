@@ -27,7 +27,15 @@ def keyword_decorator(deco):
 
 
 @keyword_decorator
-def loop(fn, interface="rich", only_on_error=False):
+def loop(fn, interface=None, only_on_error=False):
+    if interface is None:
+        try:
+            import rich
+
+            interface = "rich"
+        except ModuleNotFoundError:
+            interface = "basic"
+
     if interface == "rich":
         from .richloop import RichDeveloopRunner
 

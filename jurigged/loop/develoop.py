@@ -2,13 +2,13 @@ import ctypes
 import linecache
 import sys
 import threading
+import time
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from queue import Queue
-import time
 
 from executing import Source
-from hrepr import pstr
 from giving import SourceProxy, give, given
+from hrepr import pstr
 
 from ..register import registry
 
