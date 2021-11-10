@@ -138,5 +138,5 @@ def readable_duration(t):
         if t < 3600:
             return f"{m:.0f}m{s:.0f}s"
         else:
-            h = (t // 3600)
+            h = t // 3600
             return f"{h:.0f}h{m:.0f}m{s:.0f}s"

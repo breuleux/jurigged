@@ -268,7 +268,12 @@ def cli():  # pragma: no cover
     opts = parser.parse_args()
 
     if opts.dev:
-        from .loop import inject
+        try:
+            from .loop import inject
+
+        except ModuleNotFoundError as exc:
+            print("ModuleNotFoundError:", exc, file=sys.stderr)
+            sys.exit("To use --dev, install jurigged[develoop]")
 
         inject()
 

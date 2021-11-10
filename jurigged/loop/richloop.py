@@ -294,7 +294,9 @@ class RichDeveloopRunner(RedirectDeveloopRunner):
         )
 
     def _update(self):
-        wall = f" in {readable_duration(self._walltime)}" if self._walltime else ""
+        wall = (
+            f" in {readable_duration(self._walltime)}" if self._walltime else ""
+        )
         footer = [
             f"#{self.num} ({self._status}{wall})",
             "[bold](c)[/bold]ontinue",
