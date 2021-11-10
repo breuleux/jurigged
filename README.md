@@ -11,6 +11,10 @@ Jurigged updates live code smartly: changing a function or method will fudge cod
 
 ![demo](https://user-images.githubusercontent.com/599820/113785377-ffab1e80-9704-11eb-9c82-6d866c9087a6.gif)
 
+You can also optionally install the [develoop](#develoop), a terminal-based live development environment:
+
+
+In the demo above, the function decorated with `__.loop` is re-run every time the source code is modified, with changes hot-patched into the running process. The rest of the program is *not* re-run, so preprocessing is preserved and heavy modules do not have to be reloaded!
 
 ## Install
 
@@ -20,6 +24,11 @@ Jurigged requires Python version >= 3.8.
 pip install jurigged
 ```
 
+To also install the develoop feature, which lets you interactively develop functions:
+
+```bash
+pip install jurigged[develoop]
+```
 
 ## Command line
 
@@ -46,7 +55,7 @@ jurigged
 Full help:
 
 ```
-usage: jurigged [-h] [--interactive] [--watch PATH] [--debounce DEBOUNCE] [--poll POLL] [-m MODULE] [--verbose] [--version]
+usage: jurigged [-h] [--interactive] [--watch PATH] [--debounce DEBOUNCE] [--poll POLL] [-m MODULE] [--dev] [--verbose] [--version]
                 [SCRIPT] ...
 
 Run a Python script so that it is live-editable.
@@ -64,10 +73,33 @@ optional arguments:
                         Interval to wait for to refresh a modified file, in seconds
   --poll POLL           Poll for changes using the given interval
   -m MODULE             Module or module:function to run
+  --dev                 Inject jurigged.loop.__ in builtins
   --verbose, -v         Show watched files and changes as they happen
   --version             Print version
 ```
 
+## Develoop
+
+The "develoop" is an optional feature of Jurigged that provides a sort of live development environment for a function. If you run `jurigged --dev script.py`, a variable called `__` is injected into the builtins (you may also import it as `from jurigged.loop import __`). If a function is decorated with `__.loop`, then when it is entered, it will be run, its output will be captured and displayed, and the program will wait for input. If the source code is changed, the function will run again.
+
+Alternatively, `__.xloop` will only enter the loop if the call raises an exception. That way, you get to debug it.
+
+Here is the current functionality offered through `__`:
+
+* `__.loop`: Loop over a function call.
+* `__.xloop`: Loop over a function call only if it raises an exception.
+* `__.give`: Displays a value in a table. See [giving](https://github.com/breuleux/giving).
+
+The default interface allows a few commands:
+
+* `r` to manually re-run the loop. This can be done in the middle of a run.
+* `a` to abort the current run (e.g. if you get stuck in an infinite loop).
+* `c` to exit the loop and continue the program normally.
+* `q` to quit the program altogether.
+
+### Using with stdin
+
+The default develoop interface does not play well with stdin. If you want to read from stdin or set a `breakpoint()`, use the decorator `@__.loop(interface="basic")`. The interface will be cruder, but stdin/pdb will work.
 
 ## Troubleshooting
 
