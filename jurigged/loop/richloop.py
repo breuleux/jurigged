@@ -21,7 +21,7 @@ from rich.text import Text
 from rich.theme import Theme
 from rich.traceback import Traceback
 
-from .basic import ANSI_ESCAPE, cbreak, read_chars
+from .basic import ANSI_ESCAPE, cbreak, read_chars, readable_duration
 from .develoop import RedirectDeveloopRunner, itemappender, kill_thread
 
 REAL_STDOUT = sys.stdout
@@ -240,6 +240,7 @@ class Dash:
             redirect_stdout=False,
             redirect_stderr=False,
             console=self.console,
+            screen=True,
         )
         self.stack = StackedTerminalLines(parts, self.lv.console.height - 2)
         self.header = Text("<header>")
@@ -293,8 +294,9 @@ class RichDeveloopRunner(RedirectDeveloopRunner):
         )
 
     def _update(self):
+        wall = f" in {readable_duration(self._walltime)}" if self._walltime else ""
         footer = [
-            f"#{self.num} ({self._status})",
+            f"#{self.num} ({self._status}{wall})",
             "[bold](c)[/bold]ontinue",
             "[bold](r)[/bold]erun",
             (not self._has_result and not self._has_error)
@@ -362,6 +364,7 @@ class RichDeveloopRunner(RedirectDeveloopRunner):
         self._has_result = False
         self._has_error = False
         self._status = "running"
+        self._walltime = 0
         self._gvn = {}
 
         # Append stdout/stderr incrementally
@@ -395,6 +398,10 @@ class RichDeveloopRunner(RedirectDeveloopRunner):
         @_on("#status")
         def _(status):
             self._status = status
+
+        @_on("#walltime")
+        def _(walltime):
+            self._walltime = walltime
 
         # Fill given table
         @gv.subscribe
