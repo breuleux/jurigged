@@ -4,8 +4,10 @@ import sys
 import threading
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from queue import Queue
+import time
 
 from executing import Source
+from hrepr import pstr
 from giving import SourceProxy, give, given
 
 from ..register import registry
@@ -97,8 +99,8 @@ class DeveloopRunner:
 
     def signature(self):
         name = getattr(self.fn, "__qualname__", str(self.fn))
-        parts = list(map(str, self.args))
-        parts += [f"{k}={v}" for k, v in self.kwargs.items()]
+        parts = [pstr(arg, max_depth=0) for arg in self.args]
+        parts += [f"{k}={pstr(v, max_depth=0)}" for k, v in self.kwargs.items()]
         args = ", ".join(parts)
         return f"{name}({args})"
 
@@ -117,6 +119,7 @@ class DeveloopRunner:
         self.num += 1
         outcome = [None, None]  # [result, error]
         with given() as gv, self.wrap_run():
+            t0 = time.time()
             gv["?#result"] >> itemsetter(outcome, 0)
             gv["?#error"] >> itemsetter(outcome, 1)
             self.register_updates(gv)
@@ -127,6 +130,7 @@ class DeveloopRunner:
                 raise
             except Exception as error:
                 givex(error, status="error")
+            givex(walltime=time.time() - t0)
         return outcome
 
     def loop(self, from_error=None):

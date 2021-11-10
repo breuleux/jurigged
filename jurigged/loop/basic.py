@@ -61,6 +61,7 @@ class BasicDeveloopRunner(DeveloopRunner):
     def __init__(self, fn, args, kwargs):
         super().__init__(fn, args, kwargs)
         self._status = "running"
+        self._walltime = 0
 
     def _pad(self, text, total):
         text = f"#{self.num}: {text}"
@@ -115,3 +116,27 @@ class BasicDeveloopRunner(DeveloopRunner):
         @_on("#status")
         def _(status):
             self._status = status
+
+        @_on("#walltime")
+        def _(walltime):
+            self._walltime = walltime
+
+
+def readable_duration(t):
+    if t < 0.001:
+        return "<1ms"
+    elif t < 1:
+        t = int(t * 1000)
+        return f"{t}ms"
+    elif t < 10:
+        return f"{t:.3f}s"
+    elif t < 60:
+        return f"{t:.1f}s"
+    else:
+        s = t % 60
+        m = (t // 60) % 60
+        if t < 3600:
+            return f"{m:.0f}m{s:.0f}s"
+        else:
+            h = (t // 3600)
+            return f"{h:.0f}h{m:.0f}m{s:.0f}s"
