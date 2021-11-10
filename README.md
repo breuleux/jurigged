@@ -13,6 +13,7 @@ Jurigged updates live code smartly: changing a function or method will fudge cod
 
 You can also optionally install the [develoop](#develoop), a terminal-based live development environment:
 
+![develoop](https://user-images.githubusercontent.com/599820/141145793-1526b45d-c99b-420e-8b06-d64e14e690a2.gif)
 
 In the demo above, the function decorated with `__.loop` is re-run every time the source code is modified, with changes hot-patched into the running process. The rest of the program is *not* re-run, so preprocessing is preserved and heavy modules do not have to be reloaded!
 
