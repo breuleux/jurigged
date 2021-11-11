@@ -189,7 +189,11 @@ class Develoop:
         self.runner_class = runner_class
 
     def __get__(self, obj, cls):
-        return type(self)(self.fn.__get__(obj, cls), on_error=self.on_error)
+        return type(self)(
+            self.fn.__get__(obj, cls),
+            on_error=self.on_error,
+            runner_class=self.runner_class,
+        )
 
     def __call__(self, *args, **kwargs):
         exc = None
