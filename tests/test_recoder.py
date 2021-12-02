@@ -28,13 +28,13 @@ def test_recoder(hyperspace):
     assert hyperspace.module.boost() == 200
     rec.commit()
 
-    after = open(hyperspace.main.filename).read()
-    expected = open(hyperspace.cf.recoded.filename).read()
+    after = open(hyperspace.main.filename, encoding="utf8").read()
+    expected = open(hyperspace.cf.recoded.filename, encoding="utf8").read()
     assert after == expected
 
 
 def test_recoder_2(ballon):
-    initial = open(ballon.main.filename).read()
+    initial = open(ballon.main.filename, encoding="utf8").read()
 
     rec = Recoder(name="test", codefile=ballon.main)
     assert ballon.module.inflate(4) == 8
@@ -70,13 +70,13 @@ def test_recoder_2(ballon):
     )
     assert ballon.module.pop() == 0
 
-    before = open(ballon.main.filename).read()
+    before = open(ballon.main.filename, encoding="utf8").read()
     assert before == initial
 
     rec.commit()
 
-    after = open(ballon.main.filename).read()
-    expected = open(ballon.cf.recoded.filename).read()
+    after = open(ballon.main.filename, encoding="utf8").read()
+    expected = open(ballon.cf.recoded.filename, encoding="utf8").read()
     assert after == expected
 
 

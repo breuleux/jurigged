@@ -65,7 +65,7 @@ class TemporaryModule:
 
     def write(self, name, contents):
         path = self.rel(name)
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf8") as f:
             f.write(contents)
         # A small wait before we can import the file seems necessary under Linux but I don't know why
         if not os.environ.get("JURIGGED_FAST_TEST"):
@@ -80,7 +80,7 @@ class TemporaryModule:
             mname = f"{name}{mangle}"
         else:
             mname = name
-        filename = self.write(f"{mname}.py", open(orig).read())
+        filename = self.write(f"{mname}.py", open(orig, encoding="utf8").read())
         return mname, filename
 
     def imp(self, name, mangle=True):

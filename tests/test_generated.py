@@ -72,7 +72,7 @@ class ModuleGen:
     def impclone(self, tmod, params):
         filename = tmod.rel(f"{self.name}.py")
         tempname = params.longname()
-        tmod.write(f"{tempname}.py", open(filename).read())
+        tmod.write(f"{tempname}.py", open(filename, encoding="utf8").read())
         return __import__(tempname)
 
     def codefile(self, tmod, imp=False):

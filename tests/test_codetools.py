@@ -47,12 +47,12 @@ class CodeCollection:
 
     def read(self, name="main"):
         path = getattr(self.files, name)
-        with open(path) as f:
+        with open(path, encoding="utf8") as f:
             return f.read()
 
     def write(self, name, contents):
         path = getattr(self.files, name)
-        open(path, "w").write(contents)
+        open(path, "w", encoding="utf8").write(contents)
 
 
 @pytest.fixture
