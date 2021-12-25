@@ -249,11 +249,11 @@ def _get_main_module_details(error=ImportError):
 def _get_code_from_file(run_name, fname):
     # Check for a compiled file first
     decoded_path = os.path.abspath(os.fsdecode(fname))
-    with io.open_code(decoded_path, encoding="utf8") as f:
+    with io.open_code(decoded_path) as f:
         code = read_code(f)
     if code is None:
         # That didn't work, so try it as normal source code
-        with io.open_code(decoded_path, encoding="utf8") as f:
+        with io.open_code(decoded_path) as f:
             code = compile(f.read(), fname, "exec")
     return code, fname
 
