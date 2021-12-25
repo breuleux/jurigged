@@ -30,6 +30,9 @@ To also install the develoop feature, which lets you interactively develop funct
 ```bash
 pip install jurigged[develoop]
 ```
+```
+pip3 install git+https://github.com/InPRTx/jurigged
+```
 
 ## Command line
 
