@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace as dc_replace
 from types import CodeType, ModuleType
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from codefind import ConformException, code_registry as codereg, conform
 from ovld import ovld
@@ -938,7 +938,9 @@ def collect_definitions(self, nodes: list):
 
 
 @ovld
-def collect_definitions(self, node: (ast.FunctionDef, ast.AsyncFunctionDef)):
+def collect_definitions(
+    self, node: Union[ast.FunctionDef, ast.AsyncFunctionDef]
+):
     info = get_info()
     defns = self(node.body)
     fndefn = FunctionDefinition(
