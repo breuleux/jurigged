@@ -334,10 +334,14 @@ def cli():  # pragma: no cover
                     return codefind.find_code(*hierarchy, filename=filename)
 
             for ref in opts.loop or []:
-                redirect_code(_getcode(ref), loopmod.loop(interface=opts.loop_interface))
+                redirect_code(
+                    _getcode(ref), loopmod.loop(interface=opts.loop_interface)
+                )
 
             for ref in opts.xloop or []:
-                redirect_code(_getcode(ref), loopmod.xloop(interface=opts.loop_interface))
+                redirect_code(
+                    _getcode(ref), loopmod.xloop(interface=opts.loop_interface)
+                )
 
     mod, run = find_runner(opts, pattern, prepare=prepare)
     watch(**watch_args)
