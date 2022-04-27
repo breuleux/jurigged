@@ -666,7 +666,7 @@ class FunctionDefinition(GroupDefinition):
         if not isinstance(self.parent, FunctionDefinition):
             co = self.get_object()
             if co and (delta := lineno - co.co_firstlineno):
-                self.recode(shift_lineno(co, delta), use_cache=True)
+                self.recode(shift_lineno(co, delta), use_cache=False)
 
         return super().stash(lineno, col_offset)
 
