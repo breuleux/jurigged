@@ -13,9 +13,9 @@ Jurigged updates live code smartly: changing a function or method will fudge cod
 
 You can also optionally install the [develoop](#develoop), a terminal-based live development environment:
 
-![develoop](https://user-images.githubusercontent.com/599820/141145793-1526b45d-c99b-420e-8b06-d64e14e690a2.gif)
+![develoop2](https://user-images.githubusercontent.com/599820/165631993-8c428e4b-51d2-48d7-ae15-93bfc09c70af.gif)
 
-In the demo above, the function decorated with `__.loop` is re-run every time the source code is modified, with changes hot-patched into the running process. The rest of the program is *not* re-run, so preprocessing is preserved and heavy modules do not have to be reloaded!
+As seen above, `jurigged --loop <function_name> script.py` will "loop" on a particular function of the script. That funtion will be re-run every time the source code is modified, with changes hot-patched into the running process. The rest of the program is *not* re-run, so preprocessing is preserved and heavy modules do not have to be reloaded!
 
 ## Install
 
@@ -81,15 +81,20 @@ optional arguments:
 
 ## Develoop
 
-The "develoop" is an optional feature of Jurigged that provides a sort of live development environment for a function. If you run `jurigged --dev script.py`, a variable called `__` is injected into the builtins (you may also import it as `from jurigged.loop import __`). If a function is decorated with `__.loop`, then when it is entered, it will be run, its output will be captured and displayed, and the program will wait for input. If the source code is changed, the function will run again.
+Usage:
 
-Alternatively, `__.xloop` will only enter the loop if the call raises an exception. That way, you get to debug it.
+```bash
+# Loop over a function
+jurigged --loop function_name script.py
+jurigged --loop module_name:function_name script.py
 
-Here is the current functionality offered through `__`:
+# Only stop on exceptions
+jurigged --xloop function_name script.py
+```
 
-* `__.loop`: Loop over a function call.
-* `__.xloop`: Loop over a function call only if it raises an exception.
-* `__.give`: Displays a value in a table. See [giving](https://github.com/breuleux/giving).
+The "develoop" is an optional feature of Jurigged that provides a sort of live development environment for a function. If you run `jurigged --loop <function_name> <script>`, the function of that name in the script will be part of the "develoop". When it is entered, it will be run, its output will be captured and displayed, and the program will wait for input. If the source code is changed, the function will run again.
+
+The `--xloop` or `-x` flag works the same, but the loop is only done if the function raises an exception. If it does not raise an exception, it will run like normal. Both `--loop` and `--xloop` can be used multiple times, if you want to loop over multiple functions.
 
 The default interface allows a few commands:
 
