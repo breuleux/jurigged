@@ -1,4 +1,9 @@
 
+## 0.5.0 (2022-04-27)
+
+* Change the develoop command line interface
+* Turn off using the code cache when shifting line numbers (it's buggy)
+
 ## 0.4.1 (2021-11-11)
 
 Fix develoop on methods.
