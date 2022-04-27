@@ -326,11 +326,12 @@ def cli():  # pragma: no cover
                 if ref.startswith("/"):
                     _, module, *hierarchy = ref.split("/")
                     return codefind.find_code(*hierarchy, module=module)
+                elif ":" in ref:
+                    module, hierarchy_s = ref.split(":")
+                    hierarchy = hierarchy_s.split(".")
+                    return codefind.find_code(*hierarchy, module=module)
                 else:
-                    if "/" in ref:
-                        hierarchy = ref.split("/")
-                    else:
-                        hierarchy = ref.split(".")
+                    hierarchy = ref.split(".")
                     return codefind.find_code(*hierarchy, filename=filename)
 
             for ref in opts.loop or []:
