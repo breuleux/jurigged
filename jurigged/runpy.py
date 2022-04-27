@@ -17,6 +17,8 @@ import os
 import sys
 from pkgutil import get_importer, read_code
 
+from .rescript import split_script
+
 __all__ = [
     "run_module",
     "run_path",
@@ -48,6 +50,7 @@ def _run_code(
     mod_spec=None,
     pkg_name=None,
     script_name=None,
+    prepare=None,
 ):
     """Helper to run code in nominated namespace"""
     if init_globals is not None:
@@ -71,7 +74,16 @@ def _run_code(
         __package__=pkg_name,
         __spec__=mod_spec,
     )
-    exec(code, run_globals)
+    if isinstance(code, tuple):
+        before, after = code
+        exec(before, run_globals)
+        if prepare is not None:
+            prepare(run_globals)
+        exec(after, run_globals)
+    else:
+        exec(code, run_globals)
+        if prepare is not None:
+            prepare(run_globals)
     return run_globals
 
 
@@ -82,6 +94,7 @@ def _run_module_code(
     mod_spec=None,
     pkg_name=None,
     script_name=None,
+    prepare=None,
 ):
     """Helper to run code in new namespace with sys modified"""
     fname = script_name if mod_spec is None else mod_spec.origin
@@ -98,6 +111,7 @@ def _run_module_code(
             mod_spec,
             pkg_name,
             script_name,
+            prepare=prepare,
         )
     return temp_module
 
@@ -174,47 +188,21 @@ def _get_module_details(mod_name, error=ImportError):
     return mod_name, spec, code
 
 
-class _Error(Exception):
-    """Error that _run_module_as_main() should report without a traceback"""
-
-
-# XXX ncoghlan: Should this be documented and made public?
-# (Current thoughts: don't repeat the mistake that lead to its
-# creation when run_module() no longer met the needs of
-# mainmodule.c, but couldn't be changed because it was public)
-def _run_module_as_main(mod_name, alter_argv=True):
-    """Runs the designated module in the __main__ namespace
-    Note that the executed module will have full access to the
-    __main__ namespace. If this is not desirable, the run_module()
-    function should be used to run the module code in a fresh namespace.
-    At the very least, these variables in __main__ will be overwritten:
-        __name__
-        __file__
-        __cached__
-        __loader__
-        __package__
-    """
-    try:
-        if alter_argv or mod_name != "__main__":  # i.e. -m switch
-            mod_name, mod_spec, code = _get_module_details(mod_name, _Error)
-        else:  # i.e. directory or zipfile execution
-            mod_name, mod_spec, code = _get_main_module_details(_Error)
-    except _Error as exc:
-        msg = "%s: %s" % (sys.executable, exc)
-        sys.exit(msg)
-    main_globals = sys.modules["__main__"].__dict__
-    if alter_argv:
-        sys.argv[0] = mod_spec.origin
-    return _run_code(code, main_globals, None, "__main__", mod_spec)
-
-
-def run_module(mod_name, init_globals=None, module_object=None, alter_sys=True):
+def run_module(
+    mod_name,
+    init_globals=None,
+    module_object=None,
+    alter_sys=True,
+    prepare=None,
+):
     """Execute a module's code without importing it
     Returns the resulting top level namespace dictionary
     """
     mod_name, mod_spec, code = _get_module_details(mod_name)
     if alter_sys:
-        return _run_module_code(code, init_globals, module_object, mod_spec)
+        return _run_module_code(
+            code, init_globals, module_object, mod_spec, prepare=prepare
+        )
     else:
         # Leave the sys module alone
         return _run_code(
@@ -223,6 +211,7 @@ def run_module(mod_name, init_globals=None, module_object=None, alter_sys=True):
             init_globals,
             module_object.__name__,
             mod_spec,
+            prepare=prepare,
         )
 
 
@@ -253,12 +242,11 @@ def _get_code_from_file(run_name, fname):
         code = read_code(f)
     if code is None:
         # That didn't work, so try it as normal source code
-        with io.open_code(decoded_path) as f:
-            code = compile(f.read(), fname, "exec")
+        code = split_script(fname)
     return code, fname
 
 
-def run_path(path_name, module_object, init_globals=None):
+def run_path(path_name, module_object, init_globals=None, prepare=None):
     """Execute code located at the specified filesystem location
     Returns the resulting top level namespace dictionary
     The file path may refer directly to a Python script (i.e.
@@ -283,6 +271,7 @@ def run_path(path_name, module_object, init_globals=None):
             module_object,
             pkg_name=pkg_name,
             script_name=fname,
+            prepare=prepare,
         )
     else:
         # Finder is defined for path, so add it to
@@ -307,6 +296,7 @@ def run_path(path_name, module_object, init_globals=None):
                     run_name,
                     mod_spec,
                     pkg_name,
+                    prepare=prepare,
                 )
                 return temp_module
         finally:

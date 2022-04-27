@@ -167,7 +167,18 @@ def watch(
     return watcher
 
 
-def find_runner(opts, pattern):  # pragma: no cover
+def _loop_module():  # pragma: no cover
+    try:
+        from . import loop
+
+        return loop
+
+    except ModuleNotFoundError as exc:
+        print("ModuleNotFoundError:", exc, file=sys.stderr)
+        sys.exit("To use --loop or --xloop, install jurigged[develoop]")
+
+
+def find_runner(opts, pattern, prepare=None):  # pragma: no cover
     if opts.module:
         if opts.script is not None:
             opts.rest.insert(0, opts.script)
@@ -185,7 +196,9 @@ def find_runner(opts, pattern):  # pragma: no cover
             mod = ModuleType("__main__")
 
             def run():
-                runpy.run_module(opts.module, module_object=mod)
+                runpy.run_module(
+                    opts.module, module_object=mod, prepare=prepare
+                )
 
             return mod, run
 
@@ -199,7 +212,7 @@ def find_runner(opts, pattern):  # pragma: no cover
         mod = ModuleType("__main__")
 
         def run():
-            runpy.run_path(path, module_object=mod)
+            runpy.run_path(path, module_object=mod, prepare=prepare)
 
         return mod, run
 
@@ -247,9 +260,25 @@ def cli():  # pragma: no cover
         help="Module or module:function to run",
     )
     parser.add_argument(
-        "--dev",
-        action="store_true",
-        help="Inject jurigged.loop.__ in builtins",
+        "--loop",
+        "-l",
+        action="append",
+        type=str,
+        help="Name of the function(s) to loop on",
+    )
+    parser.add_argument(
+        "--loop-interface",
+        type=str,
+        choices=("rich", "basic"),
+        default="rich",
+        help="Interface to use for --loop",
+    )
+    parser.add_argument(
+        "--xloop",
+        "-x",
+        action="append",
+        type=str,
+        help="Name of the function(s) to loop on if they raise an error",
     )
     parser.add_argument(
         "--verbose",
@@ -267,16 +296,6 @@ def cli():  # pragma: no cover
     )
     opts = parser.parse_args()
 
-    if opts.dev:
-        try:
-            from .loop import inject
-
-        except ModuleNotFoundError as exc:
-            print("ModuleNotFoundError:", exc, file=sys.stderr)
-            sys.exit("To use --dev, install jurigged[develoop]")
-
-        inject()
-
     pattern = glob_filter(opts.watch or ".")
     watch_args = {
         "pattern": pattern,
@@ -291,7 +310,36 @@ def cli():  # pragma: no cover
         print(version)
         sys.exit()
 
-    mod, run = find_runner(opts, pattern)
+    prepare = None
+
+    if opts.loop or opts.xloop:
+        import codefind
+
+        loopmod = _loop_module()
+
+        def prepare(glb):
+            from .rescript import redirect_code
+
+            filename = glb["__file__"]
+
+            def _getcode(ref):
+                if ref.startswith("/"):
+                    _, module, *hierarchy = ref.split("/")
+                    return codefind.find_code(*hierarchy, module=module)
+                else:
+                    if "/" in ref:
+                        hierarchy = ref.split("/")
+                    else:
+                        hierarchy = ref.split(".")
+                    return codefind.find_code(*hierarchy, filename=filename)
+
+            for ref in opts.loop or []:
+                redirect_code(_getcode(ref), loopmod.loop(interface=opts.loop_interface))
+
+            for ref in opts.xloop or []:
+                redirect_code(_getcode(ref), loopmod.xloop(interface=opts.loop_interface))
+
+    mod, run = find_runner(opts, pattern, prepare=prepare)
     watch(**watch_args)
 
     if run is None:
