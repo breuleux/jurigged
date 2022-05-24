@@ -1,4 +1,12 @@
 
+## 0.5.2 (2022-05-24)
+
+Fix the -m option to take remainder arguments
+
+## 0.5.1 (2022-05-16)
+
+Make the watchdog dependency less strict
+
 ## 0.5.0 (2022-04-27)
 
 * Change the develoop command line interface
