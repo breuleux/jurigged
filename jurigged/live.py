@@ -180,24 +180,25 @@ def _loop_module():  # pragma: no cover
 
 def find_runner(opts, pattern, prepare=None):  # pragma: no cover
     if opts.module:
-        if opts.script is not None:
-            opts.rest.insert(0, opts.script)
-        sys.argv[1:] = opts.rest
+        module_spec, *rest = opts.module
+        assert opts.script is None
 
-        if ":" in opts.module:
-            module_name, func = opts.module.split(":", 1)
+        sys.argv[1:] = rest
+
+        if ":" in module_spec:
+            module_name, func = module_spec.split(":", 1)
             mod = importlib.import_module(module_name)
             return mod, getattr(mod, func)
 
         else:
-            _, spec, code = runpy._get_module_details(opts.module)
+            _, spec, code = runpy._get_module_details(module_spec)
             if pattern(spec.origin):
                 registry.prepare("__main__", spec.origin)
             mod = ModuleType("__main__")
 
             def run():
                 runpy.run_module(
-                    opts.module, module_object=mod, prepare=prepare
+                    module_spec, module_object=mod, prepare=prepare
                 )
 
             return mod, run
@@ -257,6 +258,7 @@ def cli():  # pragma: no cover
         "-m",
         dest="module",
         metavar="MODULE",
+        nargs=argparse.REMAINDER,
         help="Module or module:function to run",
     )
     parser.add_argument(
