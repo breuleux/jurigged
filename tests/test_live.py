@@ -150,3 +150,62 @@ def test_poll(tmod):
     assert evts.count("DeleteOperation") == 0
     assert evts.count("AddOperation") == 1
     assert evts.count("UpdateOperation") == 1
+
+
+def test_callback(tmod):
+    test_var = 0
+
+    def prerun_test():
+        nonlocal test_var
+        test_var += 1
+
+    def postrun_test():
+        nonlocal test_var
+        test_var += 2
+
+    mangle = "_8"
+    registry = Registry()
+
+    pre_watcher = watch(
+        pattern=tmod.rel("*.py"),
+        registry=registry,
+        debounce=0,
+        prerun_callback=prerun_test,
+    )
+    za = tmod.imp("za", mangle=mangle)
+
+    tmod.write("za_8.py", 'word = "pirate"\n')
+    time.sleep(0.05)
+    assert test_var == 1
+
+    pre_watcher.stop()
+    pre_watcher.join()
+
+    post_watcher = watch(
+        pattern=tmod.rel("*.py"),
+        registry=registry,
+        debounce=0,
+        postrun_callback=postrun_test,
+    )
+
+    tmod.write("za_8.py", 'word = "tyrant"\n')
+    time.sleep(0.05)
+    assert test_var == 3
+
+    post_watcher.stop()
+    post_watcher.join()
+
+    both_watcher = watch(
+        pattern=tmod.rel("*.py"),
+        registry=registry,
+        debounce=0,
+        prerun_callback=prerun_test,
+        postrun_callback=postrun_test,
+    )
+
+    tmod.write("za_8.py", 'word = "pirate"\n')
+    time.sleep(0.05)
+    assert test_var == 6
+
+    both_watcher.stop()
+    both_watcher.join()

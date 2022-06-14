@@ -79,7 +79,14 @@ def conservative_logger(event):
 
 
 class Watcher:
-    def __init__(self, registry, debounce=DEFAULT_DEBOUNCE, poll=False):
+    def __init__(
+        self,
+        registry,
+        debounce=DEFAULT_DEBOUNCE,
+        poll=False,
+        prerun_callback=None,
+        postrun_callback=None,
+    ):
         if poll:
             self.observer = PollingObserverVFS(
                 stat=os.stat, listdir=os.scandir, polling_interval=poll
@@ -90,6 +97,8 @@ class Watcher:
         self.registry.precache_activity.register(self.on_prepare)
         self.debounce = debounce
         self.poll = poll
+        self.prerun_callback = prerun_callback
+        self.postrun_callback = postrun_callback
 
     def on_prepare(self, module_name, filename):
         JuriggedHandler(self, filename).schedule(self.observer)
@@ -98,7 +107,11 @@ class Watcher:
     def refresh(self, path):
         cf = self.registry.get(path)
         try:
+            if self.prerun_callback:
+                self.prerun_callback()
             cf.refresh()
+            if self.postrun_callback:
+                self.postrun_callback()
         except Exception as exc:
             self.registry.log(exc)
 
@@ -156,12 +169,20 @@ def watch(
     autostart=True,
     debounce=DEFAULT_DEBOUNCE,
     poll=False,
+    prerun_callback=None,
+    postrun_callback=None,
 ):
     registry.auto_register(
         filter=glob_filter(pattern) if isinstance(pattern, str) else pattern
     )
     registry.set_logger(logger)
-    watcher = Watcher(registry, debounce=debounce, poll=poll)
+    watcher = Watcher(
+        registry,
+        debounce=debounce,
+        poll=poll,
+        prerun_callback=prerun_callback,
+        postrun_callback=postrun_callback,
+    )
     if autostart:
         watcher.start()
     return watcher
