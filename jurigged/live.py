@@ -108,10 +108,10 @@ class Watcher:
         cf = self.registry.get(path)
         try:
             if self.prerun_callback:
-                self.prerun_callback()
+                self.prerun_callback(path, cf)
             cf.refresh()
             if self.postrun_callback:
-                self.postrun_callback()
+                self.postrun_callback(path, cf)
         except Exception as exc:
             self.registry.log(exc)
 

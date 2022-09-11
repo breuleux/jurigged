@@ -155,11 +155,11 @@ def test_poll(tmod):
 def test_callback(tmod):
     test_var = 0
 
-    def prerun_test():
+    def prerun_test(path, cf):
         nonlocal test_var
         test_var += 1
 
-    def postrun_test():
+    def postrun_test(path, cf):
         nonlocal test_var
         test_var += 2
 
