@@ -170,8 +170,8 @@ def test_callback(tmod):
         pattern=tmod.rel("*.py"),
         registry=registry,
         debounce=0,
-        prerun_callback=prerun_test,
     )
+    pre_watcher.prerun.register(prerun_test)
     za = tmod.imp("za", mangle=mangle)
 
     tmod.write("za_8.py", 'word = "pirate"\n')
@@ -185,8 +185,8 @@ def test_callback(tmod):
         pattern=tmod.rel("*.py"),
         registry=registry,
         debounce=0,
-        postrun_callback=postrun_test,
     )
+    post_watcher.postrun.register(postrun_test)
 
     tmod.write("za_8.py", 'word = "tyrant"\n')
     time.sleep(0.05)
@@ -199,9 +199,9 @@ def test_callback(tmod):
         pattern=tmod.rel("*.py"),
         registry=registry,
         debounce=0,
-        prerun_callback=prerun_test,
-        postrun_callback=postrun_test,
     )
+    both_watcher.prerun.register(prerun_test)
+    both_watcher.postrun.register(postrun_test)
 
     tmod.write("za_8.py", 'word = "pirate"\n')
     time.sleep(0.05)

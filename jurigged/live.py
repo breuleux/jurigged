@@ -17,7 +17,7 @@ from watchdog.observers.polling import PollingObserverVFS
 
 from . import codetools, runpy
 from .register import registry
-from .utils import glob_filter
+from .utils import EventSource, glob_filter
 from .version import version
 
 log = logging.getLogger(__name__)
@@ -83,9 +83,7 @@ class Watcher:
         self,
         registry,
         debounce=DEFAULT_DEBOUNCE,
-        poll=False,
-        prerun_callback=None,
-        postrun_callback=None,
+        poll=False
     ):
         if poll:
             self.observer = PollingObserverVFS(
@@ -97,8 +95,8 @@ class Watcher:
         self.registry.precache_activity.register(self.on_prepare)
         self.debounce = debounce
         self.poll = poll
-        self.prerun_callback = prerun_callback
-        self.postrun_callback = postrun_callback
+        self.prerun = EventSource()
+        self.postrun = EventSource()
 
     def on_prepare(self, module_name, filename):
         JuriggedHandler(self, filename).schedule(self.observer)
@@ -107,11 +105,9 @@ class Watcher:
     def refresh(self, path):
         cf = self.registry.get(path)
         try:
-            if self.prerun_callback:
-                self.prerun_callback(path, cf)
+            self.prerun.emit(path, cf)
             cf.refresh()
-            if self.postrun_callback:
-                self.postrun_callback(path, cf)
+            self.postrun.emit(path, cf)
         except Exception as exc:
             self.registry.log(exc)
 
@@ -169,8 +165,6 @@ def watch(
     autostart=True,
     debounce=DEFAULT_DEBOUNCE,
     poll=False,
-    prerun_callback=None,
-    postrun_callback=None,
 ):
     registry.auto_register(
         filter=glob_filter(pattern) if isinstance(pattern, str) else pattern
@@ -180,8 +174,6 @@ def watch(
         registry,
         debounce=debounce,
         poll=poll,
-        prerun_callback=prerun_callback,
-        postrun_callback=postrun_callback,
     )
     if autostart:
         watcher.start()
