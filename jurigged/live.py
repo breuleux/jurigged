@@ -79,12 +79,7 @@ def conservative_logger(event):
 
 
 class Watcher:
-    def __init__(
-        self,
-        registry,
-        debounce=DEFAULT_DEBOUNCE,
-        poll=False
-    ):
+    def __init__(self, registry, debounce=DEFAULT_DEBOUNCE, poll=False):
         if poll:
             self.observer = PollingObserverVFS(
                 stat=os.stat, listdir=os.scandir, polling_interval=poll

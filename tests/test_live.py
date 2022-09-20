@@ -169,6 +169,7 @@ def test_prerun(tmod):
     )
     pre_watcher.prerun.register(prerun_test)
     za = tmod.imp("za", mangle=mangle)
+    assert za.word == "tyrant"
 
     tmod.write("za_8.py", 'word = "pirate"\n')
     time.sleep(0.05)
@@ -182,6 +183,7 @@ def test_prerun(tmod):
 
     pre_watcher.stop()
     pre_watcher.join()
+
 
 def test_postrun(tmod):
     test_var = 0
@@ -200,6 +202,7 @@ def test_postrun(tmod):
     )
     post_watcher.postrun.register(postrun_test)
     za = tmod.imp("za", mangle=mangle)
+    assert za.word == "tyrant"
 
     tmod.write("za_9.py", 'word = "tyrant"\n')
     time.sleep(0.05)
@@ -228,7 +231,7 @@ def test_prerun_postrun(tmod):
 
     mangle = "_10"
     registry = Registry()
-    
+
     both_watcher = watch(
         pattern=tmod.rel("*.py"),
         registry=registry,
@@ -238,6 +241,7 @@ def test_prerun_postrun(tmod):
     both_watcher.postrun.register(postrun_test)
 
     za = tmod.imp("za", mangle=mangle)
+    assert za.word == "tyrant"
 
     tmod.write("za_10.py", 'word = "pirate"\n')
     time.sleep(0.05)
