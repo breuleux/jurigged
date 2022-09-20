@@ -152,16 +152,12 @@ def test_poll(tmod):
     assert evts.count("UpdateOperation") == 1
 
 
-def test_callback(tmod):
+def test_prerun(tmod):
     test_var = 0
 
     def prerun_test(path, cf):
         nonlocal test_var
         test_var += 1
-
-    def postrun_test(path, cf):
-        nonlocal test_var
-        test_var += 2
 
     mangle = "_8"
     registry = Registry()
@@ -178,8 +174,24 @@ def test_callback(tmod):
     time.sleep(0.05)
     assert test_var == 1
 
+    pre_watcher.prerun.register(prerun_test)
+
+    tmod.write("za_8.py", 'word = "tyrant"\n')
+    time.sleep(0.05)
+    assert test_var == 3
+
     pre_watcher.stop()
     pre_watcher.join()
+
+def test_postrun(tmod):
+    test_var = 0
+
+    def postrun_test(path, cf):
+        nonlocal test_var
+        test_var += 1
+
+    mangle = "_9"
+    registry = Registry()
 
     post_watcher = watch(
         pattern=tmod.rel("*.py"),
@@ -187,14 +199,36 @@ def test_callback(tmod):
         debounce=0,
     )
     post_watcher.postrun.register(postrun_test)
+    za = tmod.imp("za", mangle=mangle)
 
-    tmod.write("za_8.py", 'word = "tyrant"\n')
+    tmod.write("za_9.py", 'word = "tyrant"\n')
+    time.sleep(0.05)
+    assert test_var == 1
+
+    post_watcher.postrun.register(postrun_test)
+
+    tmod.write("za_9.py", 'word = "pirate"\n')
     time.sleep(0.05)
     assert test_var == 3
 
     post_watcher.stop()
     post_watcher.join()
 
+
+def test_prerun_postrun(tmod):
+    test_var = 0
+
+    def prerun_test(path, cf):
+        nonlocal test_var
+        test_var += 1
+
+    def postrun_test(path, cf):
+        nonlocal test_var
+        test_var += 2
+
+    mangle = "_10"
+    registry = Registry()
+    
     both_watcher = watch(
         pattern=tmod.rel("*.py"),
         registry=registry,
@@ -203,9 +237,18 @@ def test_callback(tmod):
     both_watcher.prerun.register(prerun_test)
     both_watcher.postrun.register(postrun_test)
 
-    tmod.write("za_8.py", 'word = "pirate"\n')
+    za = tmod.imp("za", mangle=mangle)
+
+    tmod.write("za_10.py", 'word = "pirate"\n')
     time.sleep(0.05)
-    assert test_var == 6
+    assert test_var == 3
+
+    both_watcher.prerun.register(prerun_test)
+    both_watcher.postrun.register(postrun_test)
+
+    tmod.write("za_10.py", 'word = "tyrant"\n')
+    time.sleep(0.05)
+    assert test_var == 9
 
     both_watcher.stop()
     both_watcher.join()
