@@ -17,7 +17,7 @@ from watchdog.observers.polling import PollingObserverVFS
 
 from . import codetools, runpy
 from .register import registry
-from .utils import glob_filter
+from .utils import EventSource, glob_filter
 from .version import version
 
 log = logging.getLogger(__name__)
@@ -90,6 +90,8 @@ class Watcher:
         self.registry.precache_activity.register(self.on_prepare)
         self.debounce = debounce
         self.poll = poll
+        self.prerun = EventSource()
+        self.postrun = EventSource()
 
     def on_prepare(self, module_name, filename):
         JuriggedHandler(self, filename).schedule(self.observer)
@@ -98,7 +100,9 @@ class Watcher:
     def refresh(self, path):
         cf = self.registry.get(path)
         try:
+            self.prerun.emit(path, cf)
             cf.refresh()
+            self.postrun.emit(path, cf)
         except Exception as exc:
             self.registry.log(exc)
 
@@ -161,7 +165,11 @@ def watch(
         filter=glob_filter(pattern) if isinstance(pattern, str) else pattern
     )
     registry.set_logger(logger)
-    watcher = Watcher(registry, debounce=debounce, poll=poll)
+    watcher = Watcher(
+        registry,
+        debounce=debounce,
+        poll=poll,
+    )
     if autostart:
         watcher.start()
     return watcher
