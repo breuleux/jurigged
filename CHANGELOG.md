@@ -1,4 +1,14 @@
 
+## 0.5.4 (2023-01-20)
+
+* Develoop: Wrap text printed to the rich develoop
+* Develoop: Remove hrepr dependency
+* Better file watching for unnormalized source filenames
+
+## 0.5.3 (2022-09-20)
+
+Add pre- and post-run callback support
+
 ## 0.5.2 (2022-05-24)
 
 Fix the -m option to take remainder arguments
