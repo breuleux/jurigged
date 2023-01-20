@@ -1,6 +1,8 @@
 import re
 import sys
+from collections import deque
 from contextlib import contextmanager
+from dataclasses import dataclass
 
 import rx
 from giving import ObservableProxy
@@ -101,19 +103,45 @@ class RawSegment(Segment):
         return cell_len(re.sub(ANSI_ESCAPE, "", self.text))
 
 
+@dataclass
 class Line:
-    def __init__(self, text=""):
-        self.text = ""
-        self.length = 0
-        self.add(text)
-
-    def add(self, text):
-        stripped = re.sub(ANSI_ESCAPE, "", text)
-        self.text += text
-        self.length += len(stripped)
+    text: str = ""
+    length: int = 0
 
     def __bool__(self):
         return bool(self.text)
+
+
+def breakline(line, limit=80, initial=Line()):
+    if not line:
+        yield initial
+        return
+
+    parts = [
+        (x, i % 2 == 1)
+        for i, x in enumerate(re.split(pattern=ANSI_ESCAPE, string=line))
+    ]
+    current_line = initial.text
+    avail = limit - initial.length
+    work = deque(parts)
+    while work:
+        part, escape = work.popleft()
+        if escape:
+            current_line += part
+        else:
+            if not avail:
+                ok, extra = "", part
+            else:
+                ok, extra = part[:avail], part[avail:]
+            avail -= len(ok)
+            current_line += ok
+            if extra:
+                work.appendleft((extra, False))
+                yield Line(current_line, limit - avail)
+                current_line = ""
+                avail = limit
+    if current_line:
+        yield Line(current_line, limit - avail)
 
 
 class TerminalLines:
@@ -122,6 +150,7 @@ class TerminalLines:
         self.border = border
         self.border_highlight = border_highlight
         self.height = 0
+        self.width = 80
         self.window_size = 1
         self.clear()
 
@@ -130,8 +159,11 @@ class TerminalLines:
 
     def add(self, text):
         line1, *lines = text.split("\n")
-        self.lines[-1].add(line1)
-        self.lines += [Line(line) for line in lines]
+        self.lines[-1:] = breakline(
+            line1, limit=self.width, initial=self.lines[-1]
+        )
+        for line in lines:
+            self.lines += breakline(line, limit=self.width)
         return self
 
     def clear(self):
@@ -165,10 +197,13 @@ class TerminalLines:
 
 
 class StackedTerminalLines:
-    def __init__(self, boxes, total_height):
+    def __init__(self, boxes, total_height, width):
         self.boxes = boxes
+        for b in self.boxes:
+            b.width = width
         self.box_map = {b.title: b for b in self.boxes}
         self.total_height = total_height
+        self.width = width
         self.focus = None
 
     def __getitem__(self, item):
@@ -242,7 +277,9 @@ class Dash:
             console=self.console,
             screen=True,
         )
-        self.stack = StackedTerminalLines(parts, self.lv.console.height - 2)
+        self.stack = StackedTerminalLines(
+            parts, self.lv.console.height - 2, width=self.lv.console.width - 4
+        )
         self.header = Text("<header>")
         self.footer = Text("<footer>")
 
