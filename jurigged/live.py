@@ -120,6 +120,7 @@ class JuriggedHandler(FileSystemEventHandler):
     def __init__(self, watcher, filename):
         self.watcher = watcher
         self.filename = filename
+        self.normalized_filename = os.path.normpath(filename)
         self.mtime = 0
         self.timer = None
 
@@ -128,7 +129,7 @@ class JuriggedHandler(FileSystemEventHandler):
         self.timer = None
 
     def on_modified(self, event):
-        if event.src_path == self.filename:
+        if event.src_path == self.normalized_filename:
             mtime = os.path.getmtime(event.src_path)
             # The modified event sometimes fires twice for no reason
             # even though the mtime is the same

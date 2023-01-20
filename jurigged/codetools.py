@@ -1029,8 +1029,8 @@ class CodeFile:
     def __init__(self, filename, module_name, source=None):
         self.activity = EventSource()
         self.filename = filename
-        if not self.filename.startswith("<"):
-            self.filename = os.path.abspath(self.filename)
+        # if not self.filename.startswith("/") and not self.filename.startswith("<"):
+        #     self.filename = os.path.abspath(self.filename)
         self.module_name = module_name
         self.saved = open(self.filename).read() if source is None else source
         if not self.saved.endswith("\n"):
