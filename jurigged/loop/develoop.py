@@ -5,12 +5,41 @@ import threading
 import time
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from queue import Queue
+from types import FunctionType
+from typing import Union
 
 from executing import Source
 from giving import SourceProxy, give, given
-from hrepr import pstr
+from ovld import ovld
 
 from ..register import registry
+
+NoneType = type(None)
+
+
+@ovld
+def pstr(x: Union[int, float, bool, NoneType]):
+    return str(x)
+
+
+@ovld
+def pstr(x: str):
+    if len(x) > 15:
+        return repr(x[:12] + "...")
+    else:
+        return repr(x)
+
+
+@ovld
+def pstr(x: FunctionType):
+    name = x.__qualname__
+    return f"<function {name}>"
+
+
+@ovld
+def pstr(x: object):
+    name = type(x).__qualname__
+    return f"<{name}>"
 
 
 @registry.activity.append
@@ -99,8 +128,8 @@ class DeveloopRunner:
 
     def signature(self):
         name = getattr(self.fn, "__qualname__", str(self.fn))
-        parts = [pstr(arg, max_depth=0) for arg in self.args]
-        parts += [f"{k}={pstr(v, max_depth=0)}" for k, v in self.kwargs.items()]
+        parts = [pstr(arg) for arg in self.args]
+        parts += [f"{k}={pstr(v)}" for k, v in self.kwargs.items()]
         args = ", ".join(parts)
         return f"{name}({args})"
 
