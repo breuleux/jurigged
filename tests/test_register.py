@@ -5,7 +5,7 @@ import types
 import pytest
 
 from jurigged import codetools
-from jurigged.register import ImportSniffer, Registry, glob_filter
+from jurigged.register import Registry, add_sniffer, glob_filter
 
 from . import common
 from .common import TemporaryModule, _blah, one_test_per_assert
@@ -179,8 +179,9 @@ def test_registry_import_error(tmod):
 
 
 def test_bad_sniffer(tmod):
-    sniff = ImportSniffer(lambda *args: 1 / 0)
-    sniff.install()
+    sniff = add_sniffer(lambda *args: 1 / 0)
 
     za = tmod.imp("za", mangle="_4")
     assert za.word == "tyrant"
+
+    sniff.uninstall()

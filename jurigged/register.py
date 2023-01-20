@@ -124,9 +124,7 @@ class Registry(metaclass=OvldMC):
             module_name = getattr(module, "__name__", None)
             prep(module_name, filename)
 
-        sniffer = ImportSniffer(prep)
-        sniffer.install()
-        return sniffer
+        return add_sniffer(prep)
 
     @ovld
     def find(self, module: ModuleType):
@@ -169,17 +167,13 @@ class ImportSniffer:
     know we have to cache its contents and watch for changes.
     """
 
-    def __init__(self, report):
+    def __init__(self):
         self.working = False
-        self.report = report
-
-    def install(self):
-        sys.meta_path.insert(0, self)
-
-    def uninstall(self):
-        sys.meta_path.remove(self)
 
     def find_module(self, spec, path):
+        if not _sniffer_callbacks:
+            return None
+
         if not self.working:
             self.working = True
             # We call find_spec ourselves to find out where the file is.
@@ -194,12 +188,24 @@ class ImportSniffer:
                 and mspec.name is not None
                 and mspec.origin is not None
             ):
-                try:
-                    self.report(mspec.name, mspec.origin)
-                except Exception as exc:
-                    log.error(
-                        f"jurigged: Error processing spec {mspec.name}",
-                        exc_info=exc,
-                    )
+                for report in _sniffer_callbacks:
+                    try:
+                        report(mspec.name, mspec.origin)
+                    except Exception as exc:
+                        log.error(
+                            f"jurigged: Error processing spec {mspec.name}",
+                            exc_info=exc,
+                        )
             self.working = False
         return None
+
+
+_main_sniffer = ImportSniffer()
+sys.meta_path.insert(0, _main_sniffer)
+_sniffer_callbacks = []
+
+
+def add_sniffer(report):
+    _sniffer_callbacks.append(report)
+    report.uninstall = lambda: _sniffer_callbacks.remove(report)
+    return report

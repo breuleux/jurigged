@@ -1,5 +1,4 @@
 import ast
-import os
 import re
 from abc import abstractmethod
 from ast import _splitlines_no_ff as splitlines
@@ -308,7 +307,6 @@ class LineDefinition(Definition):
 
 @dataclass
 class HeaderDefinition(LineDefinition):
-
     ##################
     # Correspondence #
     ##################
@@ -632,7 +630,6 @@ class ModuleCode(GroupDefinition):
 
 @dataclass
 class ClassDefinition(GroupDefinition):
-
     ##############
     # Evaluation #
     ##############
@@ -655,7 +652,6 @@ class ClassDefinition(GroupDefinition):
 
 @dataclass
 class FunctionDefinition(GroupDefinition):
-
     _codeobj: object = None
 
     ##############
