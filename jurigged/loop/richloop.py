@@ -4,7 +4,7 @@ from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
 
-import rx
+import reactivex as rx
 from giving import ObservableProxy
 from pygments import token
 from rich._loop import loop_last
