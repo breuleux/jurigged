@@ -1028,7 +1028,7 @@ class CodeFile:
         # if not self.filename.startswith("/") and not self.filename.startswith("<"):
         #     self.filename = os.path.abspath(self.filename)
         self.module_name = module_name
-        self.saved = open(self.filename).read() if source is None else source
+        self.saved = self.read_source() if source is None else source
         if not self.saved.endswith("\n"):
             self.saved += "\n"
         tree = ast.parse(self.saved)
@@ -1061,7 +1061,8 @@ class CodeFile:
             raise TypeError("associate expects a dict or module")
 
     def read_source(self):
-        source = open(self.filename).read()
+        with open(self.filename) as f:
+            source = f.read()
         if not source.endswith("\n"):
             source += "\n"
         return source
