@@ -170,7 +170,7 @@ class ImportSniffer:
     def __init__(self):
         self.working = False
 
-    def find_module(self, spec, path):
+    def find_spec(self, fullname, path, target=None):
         if not _sniffer_callbacks:
             return None
 
@@ -181,7 +181,7 @@ class ImportSniffer:
             # is True and we will not enter the conditional. I'm not
             # sure if it's dangerous to call find_spec within find_spec,
             # but it seems to work, so whatever.
-            mspec = importlib.util.find_spec(spec, path)
+            mspec = importlib.util.find_spec(fullname, path)
             if (
                 mspec is not None
                 and isinstance(mspec.loader, SourceFileLoader)
