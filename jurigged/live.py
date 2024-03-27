@@ -250,6 +250,7 @@ def cli():  # pragma: no cover
         "--watch",
         "-w",
         metavar="PATH",
+        nargs="+",
         help="Wildcard path/directory for which files to watch",
     )
     parser.add_argument(
