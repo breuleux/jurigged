@@ -24,17 +24,26 @@ class EventSource(list):
             self._history.append((args, kwargs))
 
 
-def glob_filter(pattern):
-    if pattern.startswith("~"):
-        pattern = os.path.expanduser(pattern)
-    elif not pattern.startswith("/"):
-        pattern = os.path.abspath(pattern)
+def glob_filter(patterns):
+    if isinstance(patterns, str):
+        patterns = [patterns]
 
-    if os.path.isdir(pattern):
-        pattern = os.path.join(pattern, "*")
+    final_patterns=[]
+    for pattern in patterns:
+        if pattern.startswith("~"):
+            pattern = os.path.expanduser(pattern)
+        elif not pattern.startswith("/"):
+            pattern = os.path.abspath(pattern)
+
+        if os.path.isdir(pattern):
+            pattern = os.path.join(pattern, "*")
+
+        final_patterns.append(pattern)
+
+    print(final_patterns)
 
     def matcher(filename):
-        return fnmatch.fnmatch(filename, pattern)
+        return any(fnmatch.fnmatch(filename, pattern) for pattern in final_patterns) 
 
     return matcher
 
