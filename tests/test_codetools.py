@@ -461,5 +461,5 @@ def test_future_flag_name_collisions_dont_cause_issues(kilroy):
     with pytest.raises(AttributeError):
         _ = kilroy.module.f
 
-    kilroy.main.merge(kilroy.cf.bad)
+    kilroy.main.merge(kilroy.cf.name_collision)
     assert "tuse" == kilroy.module.f("tuse")
