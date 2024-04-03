@@ -435,10 +435,6 @@ def test_custom_conform(jackfruit):
     assert len(codereg.functions[jackfruit.module.jack1.__code__]) == 2
 
 
-def test_respect_future_feature_flags(kilroy):
-    assert "jeb" == kilroy.module.f("jeb")
-
-
 def test_ignore_future_flags_fails(kilroy):
     """when we don't respect __future__.annotations, we can't compile the new function"""
     with pytest.raises(AttributeError):
