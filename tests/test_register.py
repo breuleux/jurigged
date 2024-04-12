@@ -46,6 +46,9 @@ def test_glob_filter():
     assert glob_test("/a/b/*.py", "/a/b/hello.py")
     assert glob_test("/a/b/*.py", "/a/b/c/hello.py")
     assert not glob_test("/a/b/*.py", "/b/hello.py")
+    # Test multiple globs
+    assert glob_test(["/a/*", "/b/*"], "/a/foo.py")
+    assert glob_test(["/a/*", "/b/*"], "/b/foo.py")
 
 
 def test_registry_prepare(tmod):

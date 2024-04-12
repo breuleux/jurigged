@@ -1,6 +1,7 @@
 import math
 import os
 from types import SimpleNamespace as NS
+from unittest.mock import patch
 
 import pytest
 from codefind import code_registry as codereg
@@ -32,9 +33,11 @@ class CodeCollection:
 
     def read_codefiles(self):
         files = {
-            variant: self.module.__file__
-            if variant == "main"
-            else self.tmod.transfer(f"{self.basename}:{variant}")[1]
+            variant: (
+                self.module.__file__
+                if variant == "main"
+                else self.tmod.transfer(f"{self.basename}:{variant}")[1]
+            )
             for variant in self.variants
         }
         self.files = NS(**files)
@@ -105,6 +108,16 @@ def iguana(tmod):
 @pytest.fixture
 def jackfruit(tmod):
     return CodeCollection(tmod, "jackfruit")
+
+
+@pytest.fixture
+def future_flags(tmod):
+    return CodeCollection(tmod, "future_flags")
+
+
+@pytest.fixture
+def asserts(tmod):
+    return CodeCollection(tmod, "asserts")
 
 
 def test_collect(apple_code):
@@ -427,3 +440,66 @@ def test_custom_conform(jackfruit):
     # Trigger a special path in collect_all
     codereg.collect_all()
     assert len(codereg.functions[jackfruit.module.jack1.__code__]) == 2
+
+
+def test_ignore_future_flags_fails(future_flags):
+    """when we don't respect __future__.annotations, we can't compile the new function"""
+    with pytest.raises(AttributeError):
+        _ = future_flags.module.f
+
+    # disable respecting future flags:
+    with patch("jurigged.codetools._get_future_compiler_flags", side_effect=0):
+        future_flags.main.merge(future_flags.cf.new)
+
+        with pytest.raises(AttributeError):
+            _ = future_flags.module.f
+
+
+def test_respect_future_flags_succeeds(future_flags):
+    """when we do respect future flags, it works!"""
+    with pytest.raises(AttributeError):
+        _ = future_flags.module.f
+
+    future_flags.main.merge(future_flags.cf.new)
+    assert "jeb" == future_flags.module.f("jeb")
+
+
+def test_future_flag_name_collisions_dont_cause_issues(future_flags):
+    with pytest.raises(AttributeError):
+        _ = future_flags.module.f
+
+    future_flags.main.merge(future_flags.cf.name_collision)
+    assert "nonexistant_type" == future_flags.module.f("nonexistant_type")
+
+
+def test_asserts_with_rewrites(asserts):
+    # Set up
+    with patch(
+        "jurigged.config.CONFIG.rewrite_asserts_to_pytest_asserts", True
+    ):
+        # Can call this w/o exception b/c assert is correct and also has not been rewritten
+        asserts.module.foo()
+
+        # Merge the new code
+        asserts.main.merge(asserts.cf.new)
+
+        with pytest.raises(Exception) as excinfo:
+            asserts.module.foo()
+
+        # Assert raises an exception because it has been rewritten and @pytest_ar is not defined
+        assert str(excinfo.value) == "name '@pytest_ar' is not defined"
+
+
+def test_asserts_without_rewrites(asserts):
+    # Set up
+    with patch(
+        "jurigged.config.CONFIG.rewrite_asserts_to_pytest_asserts", False
+    ):
+        # Can call this w/o exception b/c assert is correct and also has not been rewritten
+        asserts.module.foo()
+
+        # Merge the new code
+        asserts.main.merge(asserts.cf.new)
+
+        with pytest.raises(AssertionError):
+            asserts.module.foo()
