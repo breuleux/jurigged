@@ -1,10 +1,12 @@
+import __future__
+
 import ast
 import re
 import sys
 from abc import abstractmethod
 from ast import _splitlines_no_ff as _splitlines
 from collections import Counter
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace as dc_replace
 from types import CodeType, ModuleType
@@ -13,10 +15,12 @@ from typing import List, Optional, Union
 from codefind import ConformException, code_registry as codereg, conform
 from ovld import ovld
 
+from .config import CONFIG
 from .parse import Variables, variables
 from .utils import EventSource, shift_lineno
 
 current_info = ContextVar("current_info", default=None)
+_future_feature_names = set(__future__.all_feature_names)
 
 
 if sys.version_info < (3, 12):  # pragma: no cover
@@ -53,6 +57,27 @@ class attrproxy:
 
     def get(self, item, dflt):
         return getattr(self.cls, item, dflt)
+
+
+def _get_future_compiler_flags(glb) -> int:
+    """use future feature names to get any that are set in the global namespace
+
+    `or` these together to get the flags for the compile function
+    """
+    flags = 0
+    for key in glb.keys() & _future_feature_names:
+        with suppress(Exception):
+            flags |= glb[key].compiler_flag
+    return flags
+
+
+def _compile_with_flags(node, mode, filename, glb):
+    """compile the node with the future flags set in the global namespace
+
+    basically, respect `from __future__ import annotations`
+    """
+    flags = _get_future_compiler_flags(glb)
+    return compile(node, mode=mode, filename=filename, flags=flags)
 
 
 @dataclass
@@ -252,7 +277,9 @@ class Definition:
     def evaluate(self, glb, lcl):
         if self.node is not None:
             node = ast.Module(body=[self.node], type_ignores=[])
-            code = compile(node, mode="exec", filename=self.filename)
+            code = _compile_with_flags(
+                node, mode="exec", filename=self.filename, glb=glb
+            )
             code = code.replace(co_name="<adjust>")
             exec(code, glb, lcl)
             codereg.assimilate(
@@ -670,13 +697,30 @@ class FunctionDefinition(GroupDefinition):
     # Management #
     ##############
 
-    def stash(self, lineno=1, col_offset=0):
+    def _stash(self, lineno=1, col_offset=0):
+        # Original jurigged stash logic
+
         if not isinstance(self.parent, FunctionDefinition):
             co = self.get_object()
             if co and (delta := lineno - co.co_firstlineno):
                 self.recode(shift_lineno(co, delta), use_cache=False)
 
         return super().stash(lineno, col_offset)
+
+    def stash(self, lineno=1, col_offset=0):
+        # patch: There's an off-by-one bug coming from somewhere in jurigged.
+        #              This affects replaced functions. When line numbers are wrong
+        #              the debugger and inspection logic doesn't work as expected.
+        # TODO: We should fix this in jurigged itself, but porting over from here for now:
+        # https://github.com/breuleux/jurigged/issues/29
+        if not isinstance(self.parent, FunctionDefinition):
+            co = self.get_object()
+            if co and (delta := lineno - co.co_firstlineno):
+                delta -= 1  # fix off-by-one
+                if delta != 0:
+                    self.recode(shift_lineno(co, delta), use_cache=False)
+
+        return self._stash(lineno, col_offset)
 
     ##################
     # Correspondence #
@@ -744,7 +788,9 @@ class FunctionDefinition(GroupDefinition):
                 self._codeobj = codereg.codes[pth]
         return self._codeobj
 
-    def reevaluate(self, new_node, glb):
+    def _reevalute(self, new_node, glb):
+        # Original jurigged reevaluate logic
+
         ext = new_node.extent
         closure = False
         lcl = {}
@@ -797,7 +843,9 @@ class FunctionDefinition(GroupDefinition):
             node = ast.Module(body=[wrap], type_ignores=[])
         else:
             node = ast.Module(body=[new_node], type_ignores=[])
-        code = compile(node, mode="exec", filename=ext.filename)
+        code = _compile_with_flags(
+            node, mode="exec", filename=ext.filename, glb=glb
+        )
         code = code.replace(co_name="<adjust>")
         exec(code, glb, lcl)
         if closure:
@@ -813,6 +861,51 @@ class FunctionDefinition(GroupDefinition):
         conform(self.get_object(), new_obj)
         self._codeobj = new_obj.__code__
         return new_obj
+
+    def reevaluate(self, new_node, glb):
+        # patch: The assertion rewrite is from pytest. Jurigged doesn't
+        #              seem to have a way to add rewrite hooks
+        # TODO: We should fix this in jurigged itself, but porting over from here for now:
+        # https://github.com/breuleux/jurigged/issues/29
+        new_node = self.apply_assertion_rewrite(new_node, glb)
+        obj = self._reevalute(new_node, glb)
+
+        return obj
+
+    def apply_assertion_rewrite(self, ast_func, glb):
+        from _pytest.assertion.rewrite import AssertionRewriter
+
+        # We only want to apply assertion rewrites if we're running in a pytest context
+        if not CONFIG.rewrite_asserts_to_pytest_asserts:
+            return ast_func
+
+        nodes: list[ast.AST] = [ast_func]  # type: ignore
+        while nodes:
+            node = nodes.pop()
+            for name, f in ast.iter_fields(node):
+                if isinstance(f, list):
+                    new: list[ast.AST] = []  # type: ignore
+                    for i, child in enumerate(f):
+                        if isinstance(child, ast.Assert):
+                            # Transform assert.
+                            new.extend(
+                                AssertionRewriter(
+                                    glb["__file__"], None, None
+                                ).visit(child)
+                            )
+                        else:
+                            new.append(child)
+                            if isinstance(child, ast.AST):
+                                nodes.append(child)
+                    setattr(node, name, new)
+                elif (
+                    isinstance(f, ast.AST)
+                    # Don't recurse into expressions as they can't contain
+                    # asserts.
+                    and not isinstance(f, ast.expr)
+                ):
+                    nodes.append(f)
+        return ast_func
 
 
 @dataclass
