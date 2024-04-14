@@ -30,7 +30,7 @@ def _std(
         cls(
             codefile=cf,
             defn=catalogue(cf.root)[defntype, cf.filename, lineno],
-            **kw
+            **kw,
         ),
         logger=logger,
     )

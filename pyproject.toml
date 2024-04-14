@@ -17,12 +17,10 @@ watchdog = ">=1.0.2"
 giving = {version = "^0.4.1", optional = true}
 rich = {version = ">=10.13.0", optional = true}
 
-[tool.poetry.dev-dependencies]
-black = ">=21.10b0"
-isort = ">=5.6.4"
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.3.7"
 pytest = ">=6.2.1"
 pytest-cov = {extras = ["toml"], version = ">=3.0.0"}
-flake8 = ">=3.8.4"
 
 [tool.poetry.extras]
 develoop = ["giving", "rich"]
@@ -30,17 +28,19 @@ develoop = ["giving", "rich"]
 [tool.poetry.scripts]
 jurigged = "jurigged.live:cli"
 
-[tool.black]
+[tool.ruff]
 line-length = 80
-exclude = "tests/snippets"
+exclude = ["tests/snippets"]
 
-[tool.isort]
-known_first_party = "jurigged"
-known_third_party = ""
-multi_line_output = 3
-include_trailing_comma = true
-combine_as_imports = true
-skip = "tests/snippets/"
+[tool.ruff.lint]
+extend-select = ["I"]
+ignore = ["E241", "F722", "E501", "E203", "F811", "F821"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
 
 [tool.coverage.run]
 omit = [

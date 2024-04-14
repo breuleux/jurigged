@@ -1,7 +1,8 @@
 import ast
 import re
+import sys
 from abc import abstractmethod
-from ast import _splitlines_no_ff as splitlines
+from ast import _splitlines_no_ff as _splitlines
 from collections import Counter
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -16,6 +17,17 @@ from .parse import Variables, variables
 from .utils import EventSource, shift_lineno
 
 current_info = ContextVar("current_info", default=None)
+
+
+if sys.version_info < (3, 12):  # pragma: no cover
+    splitlines = _splitlines
+else:  # pragma: no cover
+
+    def splitlines(s):
+        lines = _splitlines(s)
+        if len(lines) > 0 and lines[-1] == "":
+            return lines[:-1]
+        return lines
 
 
 sep_at_start = re.compile(r"^ *[\n;]")

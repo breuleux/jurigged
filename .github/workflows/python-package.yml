@@ -7,38 +7,47 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
-
+  lint:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.8', '3.9', '3.10', '3.11']
-
+        python-version: ['3.12']
     steps:
-    - uses: actions/checkout@v2
-
+    - name: Check out the code
+      uses: actions/checkout@v3
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install ruff==0.3.7
+    - name: Lint check
+      run: ruff check
+    - name: Check formatting
+      run: ruff format --check
 
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12']
+    steps:
+    - name: Check out the code
+      uses: actions/checkout@v3
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install poetry
         poetry install
-
-    - name: Lint with flake8
-      run: poetry run flake8
-
-    - name: Check formatting with black
-      run: poetry run black --check .
-
-    - name: Sort imports
-      run: poetry run isort -c --df .
-
     - name: Test with pytest
       run: poetry run pytest --cov=jurigged --cov-report term-missing
-
     - name: Verify coverage
+      if: ${{ matrix.python-version == '3.12' }}
       run: poetry run coverage report | tail -1 | egrep "TOTAL +[0-9]+ +0 +100%"
