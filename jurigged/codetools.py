@@ -847,22 +847,23 @@ def _collapse_to_end(ext):
     )
 
 
-def extend_to_line(node):
-    return Extent(
-        lineno=node.lineno,
-        col_offset=0,
-        end_lineno=node.end_lineno,
-        end_col_offset=node.end_col_offset,
-    )
+# def extend_to_line(node):
+#     return Extent(
+#         lineno=node.lineno,
+#         col_offset=0,
+#         end_lineno=node.end_lineno,
+#         end_col_offset=node.end_col_offset,
+#     )
 
 
 def fill_real_extent(node):
     extents = [
         ext for n in ast.iter_child_nodes(node) if (ext := fill_real_extent(n))
     ]
-    if hasattr(node, "decorator_list"):
-        for deco in node.decorator_list:
-            extents.append(extend_to_line(deco))
+    # # TODO: Figure out why this was here
+    # if hasattr(node, "decorator_list"):
+    #     for deco in node.decorator_list:
+    #         extents.append(extend_to_line(deco))
 
     if hasattr(node, "lineno"):
         extents.append(node)
