@@ -277,7 +277,9 @@ class Definition:
     def evaluate(self, glb, lcl):
         if self.node is not None:
             node = ast.Module(body=[self.node], type_ignores=[])
-            code = _compile_with_flags(node, mode="exec", filename=self.filename, glb=glb)
+            code = _compile_with_flags(
+                node, mode="exec", filename=self.filename, glb=glb
+            )
             code = code.replace(co_name="<adjust>")
             exec(code, glb, lcl)
             codereg.assimilate(
@@ -822,7 +824,9 @@ class FunctionDefinition(GroupDefinition):
             node = ast.Module(body=[wrap], type_ignores=[])
         else:
             node = ast.Module(body=[new_node], type_ignores=[])
-        code = _compile_with_flags(node, mode="exec", filename=ext.filename, glb=glb)
+        code = _compile_with_flags(
+            node, mode="exec", filename=ext.filename, glb=glb
+        )
         code = code.replace(co_name="<adjust>")
         exec(code, glb, lcl)
         if closure:
