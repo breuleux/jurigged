@@ -441,7 +441,7 @@ def test_ignore_future_flags_fails(kilroy):
         _ = kilroy.module.f
 
     # disable respecting future flags:
-    with patch('jurigged.codetools._get_future_compiler_flags', side_effect=0):
+    with patch("jurigged.codetools._get_future_compiler_flags", side_effect=0):
         kilroy.main.merge(kilroy.cf.new)
 
         with pytest.raises(AttributeError):
