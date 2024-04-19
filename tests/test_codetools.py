@@ -1,6 +1,7 @@
 import math
 import os
 from types import SimpleNamespace as NS
+from unittest.mock import patch
 
 import pytest
 from codefind import code_registry as codereg
@@ -105,6 +106,11 @@ def iguana(tmod):
 @pytest.fixture
 def jackfruit(tmod):
     return CodeCollection(tmod, "jackfruit")
+
+
+@pytest.fixture
+def kilroy(tmod):
+    return CodeCollection(tmod, "kilroy")
 
 
 def test_collect(apple_code):
@@ -427,3 +433,33 @@ def test_custom_conform(jackfruit):
     # Trigger a special path in collect_all
     codereg.collect_all()
     assert len(codereg.functions[jackfruit.module.jack1.__code__]) == 2
+
+
+def test_ignore_future_flags_fails(kilroy):
+    """when we don't respect __future__.annotations, we can't compile the new function"""
+    with pytest.raises(AttributeError):
+        _ = kilroy.module.f
+
+    # disable respecting future flags:
+    with patch("jurigged.codetools._get_future_compiler_flags", side_effect=0):
+        kilroy.main.merge(kilroy.cf.new)
+
+        with pytest.raises(AttributeError):
+            _ = kilroy.module.f
+
+
+def test_respect_future_flags_succeeds(kilroy):
+    """when we do respect future flags, it works!"""
+    with pytest.raises(AttributeError):
+        _ = kilroy.module.f
+
+    kilroy.main.merge(kilroy.cf.new)
+    assert "jeb" == kilroy.module.f("jeb")
+
+
+def test_future_flag_name_collisions_dont_cause_issues(kilroy):
+    with pytest.raises(AttributeError):
+        _ = kilroy.module.f
+
+    kilroy.main.merge(kilroy.cf.name_collision)
+    assert "tuse" == kilroy.module.f("tuse")

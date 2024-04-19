@@ -1,10 +1,12 @@
+import __future__
+
 import ast
 import re
 import sys
 from abc import abstractmethod
 from ast import _splitlines_no_ff as _splitlines
 from collections import Counter
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import dataclass, field, replace as dc_replace
 from types import CodeType, ModuleType
@@ -17,6 +19,7 @@ from .parse import Variables, variables
 from .utils import EventSource, shift_lineno
 
 current_info = ContextVar("current_info", default=None)
+_future_feature_names = set(__future__.all_feature_names)
 
 
 if sys.version_info < (3, 12):  # pragma: no cover
@@ -53,6 +56,29 @@ class attrproxy:
 
     def get(self, item, dflt):
         return getattr(self.cls, item, dflt)
+
+
+def _get_future_compiler_flags(glb) -> int:
+    """use future feature names to get any that are set in the global namespace
+
+    `|` these together to get the flags for the compile function
+
+    see the source code for the `__future__` module for more info
+    """
+    flags = 0
+    for key in glb.keys() & _future_feature_names:
+        with suppress(Exception):
+            flags |= glb[key].compiler_flag
+    return flags
+
+
+def _compile_with_flags(node, mode, filename, glb, flags=0):
+    """compile the node with the future flags from the global namespace
+
+    for now that means respect `from __future__ import annotations` if it exists
+    """
+    flags |= _get_future_compiler_flags(glb)
+    return compile(node, mode=mode, filename=filename, flags=flags)
 
 
 @dataclass
@@ -252,7 +278,9 @@ class Definition:
     def evaluate(self, glb, lcl):
         if self.node is not None:
             node = ast.Module(body=[self.node], type_ignores=[])
-            code = compile(node, mode="exec", filename=self.filename)
+            code = _compile_with_flags(
+                node, mode="exec", filename=self.filename, glb=glb
+            )
             code = code.replace(co_name="<adjust>")
             exec(code, glb, lcl)
             codereg.assimilate(
@@ -797,7 +825,9 @@ class FunctionDefinition(GroupDefinition):
             node = ast.Module(body=[wrap], type_ignores=[])
         else:
             node = ast.Module(body=[new_node], type_ignores=[])
-        code = compile(node, mode="exec", filename=ext.filename)
+        code = _compile_with_flags(
+            node, mode="exec", filename=ext.filename, glb=glb
+        )
         code = code.replace(co_name="<adjust>")
         exec(code, glb, lcl)
         if closure:
