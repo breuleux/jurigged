@@ -17,7 +17,7 @@ from watchdog.observers.polling import PollingObserverVFS
 
 from . import codetools, runpy
 from .register import registry
-from .utils import EventSource, glob_filter
+from .utils import EventSource, glob_filter, or_filter
 from .version import version
 
 log = logging.getLogger(__name__)
@@ -154,6 +154,21 @@ class JuriggedHandler(FileSystemEventHandler):
         observer.schedule(self, os.path.dirname(self.filename))
 
 
+@ovld
+def to_filter(pattern: str):
+    return glob_filter(pattern)
+
+
+@ovld
+def to_filter(patterns: list):
+    return or_filter([to_filter(p) for p in patterns])
+
+
+@ovld
+def to_filter(obj: object):
+    return obj
+
+
 def watch(
     pattern="./*.py",
     logger=default_logger,
@@ -162,9 +177,7 @@ def watch(
     debounce=DEFAULT_DEBOUNCE,
     poll=False,
 ):
-    registry.auto_register(
-        filter=glob_filter(pattern) if isinstance(pattern, str) else pattern
-    )
+    registry.auto_register(filter=to_filter(pattern))
     registry.set_logger(logger)
     watcher = Watcher(
         registry,
@@ -250,6 +263,7 @@ def cli():  # pragma: no cover
         "--watch",
         "-w",
         metavar="PATH",
+        action="append",
         help="Wildcard path/directory for which files to watch",
     )
     parser.add_argument(
@@ -307,7 +321,7 @@ def cli():  # pragma: no cover
     )
     opts = parser.parse_args()
 
-    pattern = glob_filter(opts.watch or ".")
+    pattern = to_filter(opts.watch or ".")
     watch_args = {
         "pattern": pattern,
         "logger": default_logger if opts.verbose else conservative_logger,

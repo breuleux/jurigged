@@ -39,6 +39,16 @@ def glob_filter(pattern):
     return matcher
 
 
+def or_filter(filters):
+    if len(filters) == 1:
+        return filters[0]
+
+    def matcher(filename):
+        return any(f(filename) for f in filters)
+
+    return matcher
+
+
 def shift_lineno(co, delta):
     if isinstance(co, types.CodeType):
         return co.replace(

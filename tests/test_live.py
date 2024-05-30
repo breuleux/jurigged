@@ -6,12 +6,15 @@ from jurigged.live import (
     WatchOperation,
     conservative_logger as conlog,
     default_logger,
+    to_filter,
     watch,
 )
 from jurigged.register import Registry
 
 from .common import catalogue, one_test_per_assert
 from .test_codetools import apple_code as apple, tmod  # noqa
+
+pause = 0.05
 
 
 def _capture(obj, logger=default_logger):
@@ -84,18 +87,18 @@ def test_watch(tmod):
     # This one is a syntax error, but it shouldn't kill the thread
     tmod.write("za_5.py", 'word = "pirate\n')
     # If the FS is slow 0.05 seconds might not be enough, but oh well
-    time.sleep(0.05)
+    time.sleep(pause)
     assert za.word == "tyrant"
 
     # This one is OK and the change should be loaded
     tmod.write("za_5.py", 'word = "pirate"\n')
-    time.sleep(0.05)
+    time.sleep(pause)
     assert za.word == "pirate"
 
     watcher.stop()
     # Updates won't reload anymore
     tmod.write("za_5.py", 'word = "nowatch"\n')
-    time.sleep(0.05)
+    time.sleep(pause)
     assert za.word == "pirate"
 
     watcher.join()
@@ -116,7 +119,7 @@ def test_debounce(tmod):
     assert za.word == "tyrant"
 
     tmod.write("za_6.py", "")
-    time.sleep(0.05)
+    time.sleep(pause)
     tmod.write("za_6.py", 'word = "tyrant"\nxxx = "xxx"')
     time.sleep(0.20)
     assert za.word == "tyrant"
@@ -141,7 +144,7 @@ def test_poll(tmod):
     assert za.word == "tyrant"
 
     tmod.write("za_7.py", "")
-    time.sleep(0.05)
+    time.sleep(pause)
     tmod.write("za_7.py", 'word = "tyrant"\nxxx = "xxx"')
     time.sleep(0.10)
     assert za.word == "tyrant"
@@ -172,13 +175,13 @@ def test_prerun(tmod):
     assert za.word == "tyrant"
 
     tmod.write("za_8.py", 'word = "pirate"\n')
-    time.sleep(0.05)
+    time.sleep(pause)
     assert test_var == 1
 
     pre_watcher.prerun.register(prerun_test)
 
     tmod.write("za_8.py", 'word = "tyrant"\n')
-    time.sleep(0.05)
+    time.sleep(pause)
     assert test_var == 3
 
     pre_watcher.stop()
@@ -205,13 +208,13 @@ def test_postrun(tmod):
     assert za.word == "tyrant"
 
     tmod.write("za_9.py", 'word = "tyrant"\n')
-    time.sleep(0.05)
+    time.sleep(pause)
     assert test_var == 1
 
     post_watcher.postrun.register(postrun_test)
 
     tmod.write("za_9.py", 'word = "pirate"\n')
-    time.sleep(0.05)
+    time.sleep(pause)
     assert test_var == 3
 
     post_watcher.stop()
@@ -244,15 +247,61 @@ def test_prerun_postrun(tmod):
     assert za.word == "tyrant"
 
     tmod.write("za_10.py", 'word = "pirate"\n')
-    time.sleep(0.05)
+    time.sleep(pause)
     assert test_var == 3
 
     both_watcher.prerun.register(prerun_test)
     both_watcher.postrun.register(postrun_test)
 
     tmod.write("za_10.py", 'word = "tyrant"\n')
-    time.sleep(0.05)
+    time.sleep(pause)
     assert test_var == 9
 
     both_watcher.stop()
     both_watcher.join()
+
+
+def test_watch_multiple(tmod):
+    mangle = "_11"
+    registry = Registry()
+    watcher = watch(
+        pattern=[tmod.rel("za_11.py"), tmod.rel("ya_11.py")],
+        registry=registry,
+        debounce=0,
+    )
+
+    za = tmod.imp("za", mangle=mangle)
+    assert za.word == "tyrant"
+
+    # The change should be loaded
+    tmod.write("za_11.py", 'word = "pirate"\n')
+    time.sleep(pause)
+    assert za.word == "pirate"
+
+    ya = tmod.imp("ya", mangle=mangle)
+    assert ya.word == "banana"
+
+    # The change should be loaded
+    tmod.write("ya_11.py", 'word = "cherry"\n')
+    time.sleep(pause)
+    assert ya.word == "cherry"
+
+    yb = tmod.imp("yb", mangle=mangle)
+    assert yb.word == "karate"
+
+    # The change should NOT be loaded
+    tmod.write("yb_11.py", 'word = "judo"\n')
+    time.sleep(pause)
+    assert yb.word == "karate"
+
+    watcher.stop()
+    watcher.join()
+    assert not watcher.observer.is_alive()
+
+
+def test_to_filter_coverage(tmod):
+    def filt(x):
+        return x.endswith(".py")
+
+    assert to_filter(filt) is filt
+    assert to_filter([filt]) is filt
