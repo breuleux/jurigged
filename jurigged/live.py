@@ -7,7 +7,8 @@ import sys
 import threading
 import traceback
 from dataclasses import dataclass
-from types import ModuleType
+from types import ModuleType, FunctionType
+from functools import wraps
 
 import blessed
 from ovld import ovld
@@ -244,6 +245,30 @@ def find_runner(opts, pattern, prepare=None):  # pragma: no cover
         return mod, None
 
 
+def auto_xloop_wrapper(func, loopmod, interface):
+    # wraps a function with xloop
+    xloop = loopmod.xloop(interface=interface)
+    wrapped = xloop(func)
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return wrapped(*args, **kwargs)
+    return wrapper
+
+def apply_xloop_all(glb, loopmod, interface):
+    # wrap all functions in the global namespace with xloop
+    for name, obj in glb.items():
+        if isinstance(obj, FunctionType):
+            glb[name] = auto_xloop_wrapper(obj, loopmod, interface)
+        elif isinstance(obj, type):  # This is a class
+            for attr_name, attr_value in obj.__dict__.items():
+                if isinstance(attr_value, FunctionType):
+                    setattr(
+                        obj,
+                        attr_name,
+                        auto_xloop_wrapper(attr_value, loopmod, interface),
+                    )
+
+
 def cli():  # pragma: no cover
     sys.path.insert(0, os.path.abspath(os.curdir))
 
@@ -306,6 +331,11 @@ def cli():  # pragma: no cover
         help="Name of the function(s) to loop on if they raise an error",
     )
     parser.add_argument(
+        "--xloop-all",
+        action="store_true",
+        help="Automatically apply xloop to any function that raises an exception",
+    )
+    parser.add_argument(
         "--verbose",
         "-v",
         action="store_true",
@@ -337,7 +367,7 @@ def cli():  # pragma: no cover
 
     prepare = None
 
-    if opts.loop or opts.xloop:
+    if opts.loop or opts.xloop or opts.xloop_all:
         import codefind
 
         loopmod = _loop_module()
@@ -368,6 +398,9 @@ def cli():  # pragma: no cover
                 redirect_code(
                     _getcode(ref), loopmod.xloop(interface=opts.loop_interface)
                 )
+
+            if opts.xloop_all:
+                apply_xloop_all(glb, loopmod, opts.loop_interface)
 
     mod, run = find_runner(opts, pattern, prepare=prepare)
     watch(**watch_args)
