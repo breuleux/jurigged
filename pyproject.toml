@@ -1,6 +1,6 @@
 [project]
 name = "jurigged"
-version = "0.5.8"
+version = "0.6.0"
 description = "Live update of Python functions"
 authors = [
     { name = "Olivier Breuleux", email = "breuleux@gmail.com" }
