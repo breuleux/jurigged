@@ -24,7 +24,7 @@ Repository = "https://github.com/breuleux/jurigged"
 
 [project.optional-dependencies]
 develoop = [
-    "giving>=0.4.3",
+    "giving~=0.4.3",
     "rich>=10.13.0",
 ]
 

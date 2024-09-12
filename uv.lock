@@ -208,7 +208,7 @@ dev = [
 requires-dist = [
     { name = "blessed", specifier = ">=1.20.0" },
     { name = "codefind", specifier = "~=0.1.7" },
-    { name = "giving", marker = "extra == 'develoop'", specifier = ">=0.4.3" },
+    { name = "giving", marker = "extra == 'develoop'", specifier = "~=0.4.3" },
     { name = "ovld", specifier = "~=0.4.0" },
     { name = "rich", marker = "extra == 'develoop'", specifier = ">=10.13.0" },
     { name = "watchdog", specifier = ">=4.0.2" },
