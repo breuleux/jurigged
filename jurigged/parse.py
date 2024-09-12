@@ -1,7 +1,7 @@
 import ast
 from dataclasses import dataclass, field, replace as dc_replace
 
-from ovld import ovld
+from ovld import ovld, recurse
 
 
 @dataclass
@@ -24,47 +24,47 @@ class Variables:
 
 
 @ovld
-def variables(self, seq: list, mapping):
+def variables(seq: list, mapping):
     fvs = Variables()
     for node in seq:
-        fvs = fvs | self(node, mapping)
+        fvs = fvs | recurse(node, mapping)
     return fvs
 
 
 @ovld
-def variables(self, node: (ast.FunctionDef, ast.AsyncFunctionDef), mapping):
+def variables(node: (ast.FunctionDef, ast.AsyncFunctionDef), mapping):
     fvs = (
-        self(node.body, mapping)
-        | self(node.args.args, mapping)
-        | self(node.args.posonlyargs, mapping)
-        | self(node.args.kwonlyargs, mapping)
-        | self(node.args.kwarg, mapping)
-        | self(node.args.vararg, mapping)
+        recurse(node.body, mapping)
+        | recurse(node.args.args, mapping)
+        | recurse(node.args.posonlyargs, mapping)
+        | recurse(node.args.kwonlyargs, mapping)
+        | recurse(node.args.kwarg, mapping)
+        | recurse(node.args.vararg, mapping)
     )
     mapping[node] = fvs
     outer = (
-        self(node.decorator_list, mapping)
-        | self(node.args.defaults, mapping)
-        | self(node.args.kw_defaults, mapping)
+        recurse(node.decorator_list, mapping)
+        | recurse(node.args.defaults, mapping)
+        | recurse(node.args.kw_defaults, mapping)
     )
     return outer | Variables(assigned={node.name}, read=fvs.free)
 
 
 @ovld
-def variables(self, node: ast.ClassDef, mapping):
-    fvs = self(node.body, mapping) | Variables(assigned={"__class__"})
+def variables(node: ast.ClassDef, mapping):
+    fvs = recurse(node.body, mapping) | Variables(assigned={"__class__"})
     mapping[node] = fvs
-    outer = self(node.decorator_list, mapping)
+    outer = recurse(node.decorator_list, mapping)
     return outer | Variables(assigned={node.name}, read=fvs.free)
 
 
 @ovld
-def variables(self, node: ast.arg, mapping):
+def variables(node: ast.arg, mapping):
     return Variables(assigned={node.arg})
 
 
 @ovld
-def variables(self, node: ast.Name, mapping):
+def variables(node: ast.Name, mapping):
     if isinstance(node.ctx, ast.Load):
         read = {node.id}
         if node.id == "super":
@@ -77,11 +77,11 @@ def variables(self, node: ast.Name, mapping):
 
 
 @ovld
-def variables(self, node: ast.AST, mapping):
-    return self(list(ast.iter_child_nodes(node)), mapping)
+def variables(node: ast.AST, mapping):
+    return recurse(list(ast.iter_child_nodes(node)), mapping)
 
 
 @ovld  # pragma: no cover
-def variables(self, thing: object, mapping):
+def variables(thing: object, mapping):
     # Just in case
     return Variables()

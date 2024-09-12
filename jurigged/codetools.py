@@ -13,7 +13,7 @@ from types import CodeType, ModuleType
 from typing import List, Optional, Union
 
 from codefind import ConformException, code_registry as codereg, conform
-from ovld import ovld
+from ovld import ovld, recurse
 
 from .parse import Variables, variables
 from .utils import EventSource, shift_lineno
@@ -962,10 +962,10 @@ def distribute(between, defn1, defn2, cls=LineDefinition):
 
 
 @ovld
-def collect_definitions(self, nodes: list):
+def collect_definitions(nodes: list):
     if not nodes:
         return []
-    defns = [(node.extent, self(node)) for node in nodes]
+    defns = [(node.extent, recurse(node)) for node in nodes]
     results = []
     for (node1, defn1), (node2, defn2) in zip(defns[:-1], defns[1:]):
         between = delta(node1, node2)
@@ -977,10 +977,10 @@ def collect_definitions(self, nodes: list):
 
 @ovld
 def collect_definitions(
-    self, node: Union[ast.FunctionDef, ast.AsyncFunctionDef]
+    node: Union[ast.FunctionDef, ast.AsyncFunctionDef]
 ):
     info = get_info()
-    defns = self(node.body)
+    defns = recurse(node.body)
     fndefn = FunctionDefinition(
         name=node.name,
         node=node,
@@ -1010,9 +1010,9 @@ def collect_definitions(
 
 
 @ovld
-def collect_definitions(self, node: ast.ClassDef):
+def collect_definitions(node: ast.ClassDef):
     info = get_info()
-    defns = self(node.body)
+    defns = recurse(node.body)
     clsdefn = ClassDefinition(
         name=node.name,
         node=node,
@@ -1036,7 +1036,7 @@ def collect_definitions(self, node: ast.ClassDef):
 
 
 @ovld
-def collect_definitions(self, node: ast.Module):
+def collect_definitions(node: ast.Module):
     info = get_info()
     begin_node = Extent(lineno=1, col_offset=0, end_lineno=1, end_col_offset=0)
     end_node = Extent(
@@ -1046,7 +1046,7 @@ def collect_definitions(self, node: ast.Module):
         end_col_offset=len(info.lines[-1]),
     )
 
-    cg = ModuleCode(node=node, name=info.module_name, children=self(node.body))
+    cg = ModuleCode(node=node, name=info.module_name, children=recurse(node.body))
 
     if node.body:
         if between := delta(begin_node, node.body[0].extent):
@@ -1059,7 +1059,7 @@ def collect_definitions(self, node: ast.Module):
 
 
 @ovld
-def collect_definitions(self, node: ast.stmt):
+def collect_definitions(node: ast.stmt):
     return LineDefinition(node=node, text=get_info().get_segment(node))
 
 
