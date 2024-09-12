@@ -840,7 +840,10 @@ class FunctionDefinition(GroupDefinition):
         lcl[self.name] = previous
         node.extent = ext
         self.node = node
-        conform(self.get_object(), new_obj)
+        old_obj = self.get_object()
+        if old_obj is None:  # pragma: no cover
+            raise Exception(f"Cannot find existing object for replacement of '{self.name}'.")
+        conform(old_obj, new_obj)
         self._codeobj = new_obj.__code__
         return new_obj
 
