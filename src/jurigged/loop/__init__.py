@@ -30,7 +30,7 @@ def keyword_decorator(deco):
 def loop(fn, interface=None, only_on_error=False):
     if interface is None:
         try:
-            import rich
+            import rich  # noqa
 
             interface = "rich"
         except ModuleNotFoundError:
@@ -62,3 +62,14 @@ __ = SimpleNamespace(
 
 def inject():
     builtins.__ = __
+
+
+__all__ = [
+    "BasicDeveloopRunner",
+    "loop",
+    "loop_on_error",
+    "xloop",
+    "Develoop",
+    "DeveloopRunner",
+    "RedirectDeveloopRunner",
+]

@@ -12,7 +12,7 @@ from jurigged.live import (
 from jurigged.register import Registry
 
 from .common import catalogue, one_test_per_assert
-from .test_codetools import apple_code as apple, tmod  # noqa
+from .test_codetools import apple_code as apple, tmod as tmod  # noqa
 
 pause = 0.05
 
