@@ -842,7 +842,9 @@ class FunctionDefinition(GroupDefinition):
         self.node = node
         old_obj = self.get_object()
         if old_obj is None:  # pragma: no cover
-            raise Exception(f"Cannot find existing object for replacement of '{self.name}'.")
+            raise Exception(
+                f"Cannot find existing object for replacement of '{self.name}'."
+            )
         conform(old_obj, new_obj)
         self._codeobj = new_obj.__code__
         return new_obj
@@ -979,9 +981,7 @@ def collect_definitions(nodes: list):
 
 
 @ovld
-def collect_definitions(
-    node: Union[ast.FunctionDef, ast.AsyncFunctionDef]
-):
+def collect_definitions(node: Union[ast.FunctionDef, ast.AsyncFunctionDef]):
     info = get_info()
     defns = recurse(node.body)
     fndefn = FunctionDefinition(
@@ -1049,7 +1049,9 @@ def collect_definitions(node: ast.Module):
         end_col_offset=len(info.lines[-1]),
     )
 
-    cg = ModuleCode(node=node, name=info.module_name, children=recurse(node.body))
+    cg = ModuleCode(
+        node=node, name=info.module_name, children=recurse(node.body)
+    )
 
     if node.body:
         if between := delta(begin_node, node.body[0].extent):

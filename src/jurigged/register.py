@@ -2,9 +2,9 @@ import importlib.util
 import logging
 import os
 import sys
+from _frozen_importlib_external import SourceFileLoader
 from types import CodeType, FunctionType, ModuleType
 
-from _frozen_importlib_external import SourceFileLoader
 from ovld import OvldMC, ovld
 
 from .codetools import CodeFile, FunctionDefinition
