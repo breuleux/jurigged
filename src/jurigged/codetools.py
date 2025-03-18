@@ -1108,7 +1108,7 @@ class CodeFile:
             raise TypeError("associate expects a dict or module")
 
     def read_source(self):
-        with open(self.filename) as f:
+        with open(self.filename, encoding="utf-8") as f:
             source = f.read()
         if not source.endswith("\n"):
             source += "\n"
@@ -1155,7 +1155,7 @@ class CodeFile:
         new_source = self.root.reconstruct()
         if not new_source.endswith("\n"):
             new_source += "\n"
-        with open(self.filename, "w") as f:
+        with open(self.filename, "w", encoding="utf-8") as f:
             f.write(new_source)
         self.root.stash()
         self.saved = new_source

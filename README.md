@@ -47,9 +47,11 @@ With no arguments given, it will start a live REPL:
 
 ```bash
 python -m jurigged
+```
 
 OR
 
+```bash
 jurigged
 ```
 
