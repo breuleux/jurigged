@@ -16,7 +16,7 @@ from codefind import ConformException, code_registry as codereg, conform
 from ovld import ovld, recurse
 
 from .parse import Variables, variables
-from .utils import EventSource, shift_lineno
+from .utils import EventSource, shift_lineno, FILE_ENCODING
 
 current_info = ContextVar("current_info", default=None)
 _future_feature_names = set(__future__.all_feature_names)
@@ -1108,7 +1108,7 @@ class CodeFile:
             raise TypeError("associate expects a dict or module")
 
     def read_source(self):
-        with open(self.filename, encoding="utf-8") as f:
+        with open(self.filename, encoding=FILE_ENCODING) as f:
             source = f.read()
         if not source.endswith("\n"):
             source += "\n"
@@ -1155,7 +1155,7 @@ class CodeFile:
         new_source = self.root.reconstruct()
         if not new_source.endswith("\n"):
             new_source += "\n"
-        with open(self.filename, "w", encoding="utf-8") as f:
+        with open(self.filename, "w", encoding=FILE_ENCODING) as f:
             f.write(new_source)
         self.root.stash()
         self.saved = new_source

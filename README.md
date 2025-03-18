@@ -37,9 +37,11 @@ The simplest way to use jurigged is to add `-m jurigged` to your script invocati
 
 ```bash
 python -m jurigged -v script.py
+```
 
 OR
 
+```bash
 jurigged -v script.py
 ```
 
@@ -57,7 +59,7 @@ jurigged
 
 Full help:
 
-```
+```bash
 usage: jurigged [-h] [--interactive] [--watch PATH] [--debounce DEBOUNCE] [--poll POLL] [-m MODULE] [--dev] [--verbose] [--version]
                 [SCRIPT] ...
 
@@ -83,14 +85,16 @@ optional arguments:
 
 ## Develoop
 
-Usage:
+### Usage:
 
+#### Loop over a function
 ```bash
-# Loop over a function
 jurigged --loop function_name script.py
 jurigged --loop module_name:function_name script.py
+```
 
-# Only stop on exceptions
+#### Only stop on exceptions
+```bash
 jurigged --xloop function_name script.py
 ```
 
