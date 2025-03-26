@@ -8,7 +8,7 @@ from types import CodeType, FunctionType, ModuleType
 from ovld import OvldMC, ovld
 
 from .codetools import CodeFile, FunctionDefinition
-from .utils import EventSource, glob_filter, FILE_ENCODING
+from .utils import FILE_ENCODING, EventSource, glob_filter
 
 log = logging.getLogger(__name__)
 

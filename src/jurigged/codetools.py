@@ -16,7 +16,7 @@ from codefind import ConformException, code_registry as codereg, conform
 from ovld import ovld, recurse
 
 from .parse import Variables, variables
-from .utils import EventSource, shift_lineno, FILE_ENCODING
+from .utils import FILE_ENCODING, EventSource, shift_lineno
 
 current_info = ContextVar("current_info", default=None)
 _future_feature_names = set(__future__.all_feature_names)

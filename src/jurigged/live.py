@@ -1,6 +1,7 @@
 import argparse
 import code
 import importlib
+import inspect
 import logging
 import os
 import sys
@@ -79,7 +80,7 @@ def conservative_logger(event):
 
 
 class Watcher:
-    def __init__(self, registry, debounce=DEFAULT_DEBOUNCE, poll=False):
+    def __init__(self, registry, debounce=DEFAULT_DEBOUNCE, poll=False, callback=None):
         if poll:
             self.observer = PollingObserverVFS(
                 stat=os.stat, listdir=os.scandir, polling_interval=poll
@@ -92,6 +93,7 @@ class Watcher:
         self.poll = poll
         self.prerun = EventSource()
         self.postrun = EventSource()
+        self.callback = callback
 
     def on_prepare(self, module_name, filename):
         JuriggedHandler(self, filename).schedule(self.observer)
@@ -103,6 +105,17 @@ class Watcher:
             self.prerun.emit(path, cf)
             cf.refresh()
             self.postrun.emit(path, cf)
+            for cb in self.callback:
+                param_keys = inspect.signature(cb).parameters.keys()
+                kwargs = {}
+
+                if "file_path" in param_keys:
+                    kwargs["file_path"] = path
+                if "cf" in param_keys:
+                    kwargs["cf"] = cf
+
+                cb(**kwargs)
+                    
         except Exception as exc:
             self.registry.log(exc)
 
@@ -176,6 +189,7 @@ def watch(
     autostart=True,
     debounce=DEFAULT_DEBOUNCE,
     poll=False,
+    callback=None,  # 新增 callback 参数
 ):
     registry.auto_register(filter=to_filter(pattern))
     registry.set_logger(logger)
@@ -183,6 +197,7 @@ def watch(
         registry,
         debounce=debounce,
         poll=poll,
+        callback=callback,  # 传递 callback 参数
     )
     if autostart:
         watcher.start()
