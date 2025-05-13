@@ -38,6 +38,8 @@ jobs:
         - python: '3.11'
           coverage: false
         - python: '3.12'
+          coverage: false
+        - python: '3.13'
           coverage: true
     steps:
     - name: Check out the code
