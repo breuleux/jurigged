@@ -3,9 +3,6 @@ on:
   push:
     tags:
       - v**
-    branches:
-      - main
-      - master
 jobs:
   build:
     name: Build
