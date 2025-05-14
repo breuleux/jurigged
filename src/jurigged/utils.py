@@ -2,6 +2,7 @@ import fnmatch
 import os
 import types
 
+FILE_ENCODING = "utf-8"
 
 class EventSource(list):
     def __init__(self, *, save_history=False):

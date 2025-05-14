@@ -8,7 +8,7 @@ from types import CodeType, FunctionType, ModuleType
 from ovld import OvldMC, ovld
 
 from .codetools import CodeFile, FunctionDefinition
-from .utils import EventSource, glob_filter
+from .utils import FILE_ENCODING, EventSource, glob_filter
 
 log = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ class Registry(metaclass=OvldMC):
                         )
 
             if os.path.exists(filename):
-                with open(filename, "r", encoding="utf8") as f:
+                with open(filename, "r", encoding=FILE_ENCODING) as f:
                     self.precache[filename] = (
                         module_name,
                         f.read(),
